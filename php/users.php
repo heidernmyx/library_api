@@ -38,7 +38,7 @@ class User {
             exit;
         }
 
-        // try {
+        try {
             // Check if email already exists in contacts
             $stmt = $this->pdo->prepare("SELECT * FROM contacts WHERE Email = :email");
             $stmt->bindParam(':email', $json['email'], PDO::PARAM_STR);
@@ -69,12 +69,12 @@ class User {
 
             http_response_code(201); // Created
             echo json_encode(['success' => true, 'message' => 'User registered successfully.', 'user_id' => $userId]);
-        // } catch (\PDOException $e) {
-        //     // Rollback transaction on error
-        //     $this->pdo->rollBack();
-        //     http_response_code(500); // Internal Server Error
-        //     echo json_encode(['success' => false, 'message' => 'Registration failed.', 'error' => $e->getMessage()]);
-        // }
+        } catch (\PDOException $e) {
+            // Rollback transaction on error
+            $this->pdo->rollBack();
+            http_response_code(500); // Internal Server Error
+            echo json_encode(['success' => false, 'message' => 'Registration failed.', 'error' => $e->getMessage()]);
+        }
     }
 
     /**
