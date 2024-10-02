@@ -1,7 +1,8 @@
 <?php
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: localhost:3000');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: POST');
 
 include '../php/connection/connection.php';
 
@@ -12,15 +13,34 @@ class BookProvider {
     $this->pdo = $pdo;
   }
 
-  public function fetchBookProviders() {
-    $stmt = $this->pdo->prepare("SELECT * FROM bookprovider");
+public function fetchBookProviders() {
+    $stmt = $this->pdo->prepare("
+    SELECT
+        ProviderID,
+        ProviderName,
+        contacts.Phone,
+        contacts.Email,
+        addresses.Street,
+        addresses.City,
+        addresses.State,
+        addresses.Country,
+        addresses.PostalCode
+    FROM
+        book_providers
+    INNER JOIN contacts ON book_providers.ContactID = contacts.ContactID
+    INNER JOIN addresses ON book_providers.AddressID = addresses.AddressID
+    ");
     $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-  }
+    $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  
+    echo json_encode($data);
+}
+
 
   public function addBookProvider($json) {
 
-    // try{
+    try{
       $stmt = $this->pdo->prepare("SELECT * FROM contacts WHERE Email = :email");
       $stmt->bindParam(':email', $json['email'], PDO::PARAM_STR);
       $stmt->execute();
@@ -87,19 +107,19 @@ class BookProvider {
     $stmt = $this->pdo->prepare($sql);
     $stmt->execute([$json['providerName'], $contactId, $addressId]);
     
-    $stmt->execute();
+    // $stmt->execute();
 
     $this->pdo->commit();
     
     unset($stmt); unset($this->pdo);
     http_response_code(201); 
     echo json_encode(['success' => true, 'message' => 'Book Provider added successfully.']);
-    $this->pdo->rollBack();
-    // } catch (PDOException $e) {
-    //   $this->pdo->rollBack();
-    //   // echo json_encode(['success' => false, 'message' => 'Adding of book provider failed' . $e->getMessage()]);
-    //   exit;
-    // }
+
+    } catch (PDOException $e) {
+      $this->pdo->rollBack();
+      echo json_encode(['success' => false, 'message' => 'Adding of book provider failed' . $e->getMessage()]);
+      exit;
+    }
     
   }
 }

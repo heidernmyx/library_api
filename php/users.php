@@ -151,7 +151,8 @@ class User {
               'user' => [
                 'user_id' => $user['UserID'],
                 'name' => $user['Name'],
-                'role' => $user['RoleName']
+                'role' => $user['RoleName'],
+                'email' => $json['email']
               ]
             ]);
         // } catch (\PDOException $e) {
