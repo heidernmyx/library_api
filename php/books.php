@@ -63,6 +63,7 @@ function addBook($conn, $title, $author, $isbn, $publicationDate, $genre, $locat
     return $stmt->execute([$title, $author, $isbn, $publicationDate, $genre, $location, $totalCopies, $availableCopies, $providerID]);
 }
 
+
 // Update an existing book
 function updateBook($conn, $bookID, $title, $author, $isbn, $publicationDate, $genre, $location, $totalCopies, $availableCopies, $providerID) {
     $sql = 'UPDATE book SET Title = ?, Author = ?, ISBN = ?, PublicationDate = ?, Genre = ?, Location = ?, TotalCopies = ?, AvailableCopies = ?, ProviderID = ? WHERE BookID = ?';
