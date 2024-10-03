@@ -11,36 +11,37 @@ class Book {
     public function __construct($pdo) {
         $this->pdo = $pdo;
     }
-
-    public function addBook($json) {
-        if (!$this->validateBookInput($json)) {
-            http_response_code(400); // Bad Request
-            echo json_encode(['success' => false, 'message' => 'Invalid input.']);
-            exit;
-        }
-
-        try {
-            $this->pdo->beginTransaction();
-
-            // Check if author exists, if not, insert a new author
-            $authorId = $this->getOrCreateAuthor($json['author']);
-
-            // Insert the book with additional details
-            $stmt = $this->pdo->prepare("INSERT INTO books (Title, AuthorID, ISBN, PublicationDate) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$json['title'], $authorId, $json['isbn'], $json['publication_date']]);
-            $bookId = $this->pdo->lastInsertId();
-
-            // Handle genres (assume it's an array)
-            $this->handleGenres($json['genres'], $bookId);
-
-            $this->pdo->commit();
-            echo json_encode(['success' => true, 'message' => 'Book added successfully.', 'book_id' => $bookId]);
-        } catch (\PDOException $e) {
-            $this->pdo->rollBack();
-            http_response_code(500); // Internal Server Error
-            echo json_encode(['success' => false, 'message' => 'Failed to add book.', 'error' => $e->getMessage()]);
-        }
+public function addBook($json) {
+    if (!$this->validateBookInput($json)) {
+        http_response_code(400); // Bad Request
+        echo json_encode(['success' => false, 'message' => 'Invalid input.']);
+        exit;
     }
+
+    try {
+        $this->pdo->beginTransaction();
+
+        // Check if author exists, if not, insert a new author
+        $authorId = $this->getOrCreateAuthor($json['author']);
+        
+        // Use $json['provider_id'] instead of $providerId
+        $stmt = $this->pdo->prepare("INSERT INTO books (Title, AuthorID, ISBN, PublicationDate, ProviderID) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$json['title'], $authorId, $json['isbn'], $json['publication_date'], $json['provider_id']]);
+        
+        $bookId = $this->pdo->lastInsertId();
+
+        // Handle genres (assume it's an array)
+        $this->handleGenres($json['genres'], $bookId);
+
+        $this->pdo->commit();
+        echo json_encode(['success' => true, 'message' => 'Book added successfully.', 'book_id' => $bookId]);
+    } catch (\PDOException $e) {
+        $this->pdo->rollBack();
+        http_response_code(500); // Internal Server Error
+        echo json_encode(['success' => false, 'message' => 'Failed to add book.', 'error' => $e->getMessage()]);
+    }
+}
+
 
     private function validateBookInput($json) {
         return !empty($json['title']) && !empty($json['author']) && 
@@ -87,6 +88,32 @@ class Book {
             $stmt->execute([$bookId, $genreId]);
         }
     }
+public function fetchBooks() {
+    $stmt = $this->pdo->prepare("
+        SELECT
+            books.BookID,
+            books.Title,
+            authors.AuthorName,
+            books.ISBN,
+            books.PublicationDate,
+            book_providers.ProviderName,
+            GROUP_CONCAT(genres.GenreName SEPARATOR ', ') AS Genres
+        FROM
+            books
+        LEFT JOIN authors ON books.AuthorID = authors.AuthorID
+        LEFT JOIN book_providers ON books.ProviderID = book_providers.ProviderID
+        LEFT JOIN books_genre ON books.BookID = books_genre.BookID
+        LEFT JOIN genres ON books_genre.GenreID = genres.GenreID
+        GROUP BY
+            books.BookID
+    ");
+    $stmt->execute();
+    $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode($data);
+}
+
+
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'GET') {
@@ -103,8 +130,12 @@ switch ($operation) {
     case 'addBook':
         $book->addBook($json);
         break;
+    case 'fetchBooks':
+        $book->fetchBooks();
+        break;
     default:
         http_response_code(400); // Bad Request
-        echo json_encode("Invalid operation.");
+        echo json_encode(['success' => false, 'message' => 'Invalid operation.']);
         break;
+
 }
