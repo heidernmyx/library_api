@@ -112,6 +112,40 @@ public function fetchBooks() {
 
     echo json_encode($data);
 }
+public function updateBook($json) {
+    if (!$this->validateUpdateInput($json)) {
+        http_response_code(400); // Bad Request
+        echo json_encode(['success' => false, 'message' => 'Invalid input.']);
+        exit;
+    }
+
+    try {
+        $this->pdo->beginTransaction();
+
+        // Check if author exists, if not, insert a new author
+        $authorId = $this->getOrCreateAuthor($json['author']);
+        
+        // Update the book details
+        $stmt = $this->pdo->prepare("UPDATE books SET Title = ?, AuthorID = ?, ISBN = ?, PublicationDate = ?, ProviderID = ? WHERE BookID = ?");
+        $stmt->execute([$json['title'], $authorId, $json['isbn'], $json['publication_date'], $json['provider_id'], $json['id']]);
+        
+        // Handle genres (assume it's an array)
+        $this->handleGenres($json['genres'], $json['id']);
+
+        $this->pdo->commit();
+        echo json_encode(['success' => true, 'message' => 'Book updated successfully.']);
+    } catch (\PDOException $e) {
+        $this->pdo->rollBack();
+        http_response_code(500); // Internal Server Error
+        echo json_encode(['success' => false, 'message' => 'Failed to update book.', 'error' => $e->getMessage()]);
+    }
+}
+
+private function validateUpdateInput($json) {
+    return !empty($json['id']) && !empty($json['title']) && !empty($json['author']) && 
+           isset($json['genres']) && is_array($json['genres']) && 
+           !empty($json['isbn']) && !empty($json['publication_date']);
+}
 
 
 }
@@ -132,6 +166,9 @@ switch ($operation) {
         break;
     case 'fetchBooks':
         $book->fetchBooks();
+        break;
+          case 'updateBook':
+        $book->updateBook($json);
         break;
     default:
         http_response_code(400); // Bad Request
