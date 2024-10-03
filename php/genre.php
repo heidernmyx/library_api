@@ -1,7 +1,7 @@
 <?php
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: localhost:3000');
+header('Access-Control-Allow-Origin: *');
 
 
 include '../php/connection/connection.php';
@@ -99,4 +99,4 @@ switch ($operation) {
 // add genre post req sample
 
 // key = operation, value = addGenre
-// key = json,      value = {"addGenre": "Fantasy"}
+// key = json,      value = {"genreName": "Fantasy"}

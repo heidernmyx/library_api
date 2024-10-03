@@ -1,7 +1,7 @@
 <?php
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: localhost:3000');
+header('Access-Control-Allow-Origin: *');
 
 
 include '../php/connection/connection.php';
