@@ -210,6 +210,47 @@ GROUP BY
     echo json_encode($data);
 }
 
+public function fetchReservedBooks($userId) {
+    try {
+        $stmt = $this->pdo->prepare(
+            "SELECT 
+                reservations.ReservationID,
+                books.BookID,
+                books.Title,
+                authors.AuthorName,
+                reservations.ReservationDate,
+                reservations.ExpirationDate,
+                reservation_status.StatusName,
+                books.ISBN,
+                books.PublicationDate,
+                book_providers.ProviderName
+            FROM 
+                reservations
+            LEFT JOIN 
+                books ON reservations.BookID = books.BookID
+            LEFT JOIN 
+                authors ON books.AuthorID = authors.AuthorID
+            LEFT JOIN 
+                book_providers ON books.ProviderID = book_providers.ProviderID
+            LEFT JOIN 
+                reservation_status ON reservations.StatusID = reservation_status.StatusID
+            WHERE 
+                reservations.UserID = ?
+            ORDER BY 
+                reservations.ReservationDate DESC"
+        );
+        $stmt->execute([$userId]);
+        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode(['success' => true, 'reserved_books' => $data]);
+    } catch (\PDOException $e) {
+        http_response_code(500); // Internal Server Error
+        echo json_encode(['success' => false, 'message' => 'Failed to fetch reserved books.', 'error' => $e->getMessage()]);
+    }
+}
+
+
+
     public function fetchGenres() {
         $stmt = $this->pdo->prepare("SELECT * FROM genres");
         $stmt->execute();
@@ -303,6 +344,9 @@ switch ($operation) {
         break;
     case 'fetchGenres':
         $book->fetchGenres();
+        break;
+    case 'fetchReservedBooks':
+        $book->fetchReservedBooks($json['user_id']);
         break;
     case 'reserveBook':
         $book->reserveBook($json['user_id'], $json['book_id']);
