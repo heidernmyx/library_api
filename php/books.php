@@ -106,22 +106,28 @@ private function addBookCopies($bookId, $copies) {
         }
     }
 
+
 public function reserveBook($userId, $bookId) {
     try {
         // Check if there are available copies
+        $this->pdo->beginTransaction();
         $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM book_copies WHERE BookID = ? AND IsAvailable = 1");
         $stmt->execute([$bookId]);
         $availableCopies = $stmt->fetchColumn();
-
+        // echo json_encode($availableCopies);
         if ($availableCopies > 0) {
             // Proceed with the reservation
             $stmt = $this->pdo->prepare("INSERT INTO reservations (UserID, BookID, ReservationDate, ExpirationDate, StatusID) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 1)");
             $stmt->execute([$userId, $bookId]);
 
-            echo json_encode(['success' => true, 'message' => 'Book reserved successfully.']);
+            echo json_encode($stmt->rowCount() > 0 ? 1 : 0);
+            unset($pdo); unset($stmt);
+
+            // echo json_encode(['success' => true, 'message' => 'Book reserved successfully.']);
         } else {
             echo json_encode(['success' => false, 'message' => 'No copies available.']);
         }
+        $this->pdo->rollBack();
     } catch (\PDOException $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Failed to reserve book.', 'error' => $e->getMessage()]);
