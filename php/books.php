@@ -109,32 +109,38 @@ private function addBookCopies($bookId, $copies) {
 
 public function reserveBook($userId, $bookId) {
     try {
-        // Check if there are available copies
+     
         $this->pdo->beginTransaction();
-        $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM book_copies WHERE BookID = ? AND IsAvailable = 1");
+
+        //  Fetch an available copy of the book
+        $stmt = $this->pdo->prepare("SELECT CopyNumber FROM book_copies WHERE BookID = ? AND IsAvailable = 1 LIMIT 1");
         $stmt->execute([$bookId]);
-        $availableCopies = $stmt->fetchColumn();
-        // echo json_encode($availableCopies);
-        if ($availableCopies > 0) {
-            // Proceed with the reservation
+        $availableCopy = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($availableCopy) {
+            //  Update the copy to set IsAvailable = 0
+            $stmt = $this->pdo->prepare("UPDATE book_copies SET IsAvailable = 0 WHERE BookID = ? AND CopyNumber = ?");
+            $stmt->execute([$bookId, $availableCopy['CopyNumber']]);
+
+    
             $stmt = $this->pdo->prepare("INSERT INTO reservations (UserID, BookID, ReservationDate, ExpirationDate, StatusID) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 1)");
             $stmt->execute([$userId, $bookId]);
 
+            //! Commit the transaction
             $this->pdo->commit();
-            echo json_encode($stmt->rowCount() > 0 ? 1 : 0);
-            unset($pdo); unset($stmt);
-
-            // echo json_encode(['success' => true, 'message' => 'Book reserved successfully.']);
+            echo json_encode(['success' => true, 'message' => 'Book reserved successfully.']);
         } else {
+            // Rollback if no available copies
+            $this->pdo->rollBack();
             echo json_encode(['success' => false, 'message' => 'No copies available.']);
         }
-        // $this->pdo->rollBack();
-        
     } catch (\PDOException $e) {
+        $this->pdo->rollBack();
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Failed to reserve book.', 'error' => $e->getMessage()]);
     }
 }
+
 
 public function borrowBook($userId, $reservationId) {
     try {
@@ -146,7 +152,7 @@ public function borrowBook($userId, $reservationId) {
         if ($reservation) {
             $bookId = $reservation['BookID'];
 
-            // Mark one copy as unavailable
+            // Make one copy as unavailable
             $stmt = $this->pdo->prepare("UPDATE book_copies SET IsAvailable = 0 WHERE BookID = ? AND IsAvailable = 1 LIMIT 1");
             $stmt->execute([$bookId]);
 
@@ -169,28 +175,35 @@ public function borrowBook($userId, $reservationId) {
 }
 
   public function fetchBooks() {
-    $stmt = $this->pdo->prepare("
-        SELECT
-            books.BookID,
-            books.Title,
-            authors.AuthorName,
-            books.ISBN,
-            books.PublicationDate, 
-            book_providers.ProviderName,
-            COUNT(book_copies.CopyNumber) AS TotalCopies,
-            SUM(CASE WHEN book_copies.IsAvailable = 1 THEN 1 ELSE 0 END) AS AvailableCopies,
-            (SELECT GROUP_CONCAT(genres.GenreName SEPARATOR ', ') 
-             FROM books_genre 
-             LEFT JOIN genres ON books_genre.GenreID = genres.GenreID 
-             WHERE books_genre.BookID = books.BookID) AS Genres
-        FROM
-            books
-        LEFT JOIN authors ON books.AuthorID = authors.AuthorID
-        LEFT JOIN book_providers ON books.ProviderID = book_providers.ProviderID
-        LEFT JOIN book_copies ON books.BookID = book_copies.BookID
-        GROUP BY
-            books.BookID
-    ");
+    $stmt = $this->pdo->prepare(
+    "SELECT
+    books.BookID,
+    books.Title,
+    authors.AuthorName,
+    books.ISBN,
+    books.PublicationDate,
+    book_providers.ProviderName,
+    COUNT(book_copies.CopyNumber) AS TotalCopies,
+    SUM(
+        CASE WHEN book_copies.IsAvailable = 1 THEN 1 ELSE 0
+    END
+) AS AvailableCopies,
+(
+    SELECT
+        GROUP_CONCAT(genres.GenreName SEPARATOR ', ')
+    FROM
+        books_genre
+    LEFT JOIN genres ON books_genre.GenreID = genres.GenreID
+    WHERE
+        books_genre.BookID = books.BookID
+) AS Genres
+FROM
+    books
+LEFT JOIN authors ON books.AuthorID = authors.AuthorID
+LEFT JOIN book_providers ON books.ProviderID = book_providers.ProviderID
+LEFT JOIN book_copies ON books.BookID = book_copies.BookID
+GROUP BY
+    books.BookID");
     $stmt->execute();
     $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
