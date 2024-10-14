@@ -210,10 +210,11 @@ GROUP BY
     echo json_encode($data);
 }
 
-public function fetchReservedBooks($userId) {
+public function fetchReservedBooks($userId = null) {
     try {
-        $stmt = $this->pdo->prepare(
-            "SELECT 
+        // Base query
+        $sql = "
+            SELECT 
                 reservations.ReservationID,
                 books.BookID,
                 books.Title,
@@ -234,20 +235,33 @@ public function fetchReservedBooks($userId) {
                 book_providers ON books.ProviderID = book_providers.ProviderID
             LEFT JOIN 
                 reservation_status ON reservations.StatusID = reservation_status.StatusID
-            WHERE 
-                reservations.UserID = ?
-            ORDER BY 
-                reservations.ReservationDate DESC"
-        );
-        $stmt->execute([$userId]);
+        ";
+
+        // Modify query if userId is provided
+        if ($userId !== null) {
+            // If userId is provided, filter results by user
+            $sql .= " WHERE reservations.UserID = ? ORDER BY reservations.ReservationDate DESC";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([$userId]);
+        } else {
+            // If userId is null, fetch all reserved books
+            $sql .= " ORDER BY reservations.ReservationDate DESC";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute();
+        }
+
+        // Fetch data
         $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Return the result
         echo json_encode(['success' => true, 'reserved_books' => $data]);
     } catch (\PDOException $e) {
+        // Handle errors
         http_response_code(500); // Internal Server Error
         echo json_encode(['success' => false, 'message' => 'Failed to fetch reserved books.', 'error' => $e->getMessage()]);
     }
 }
+
 
 
 
@@ -346,7 +360,7 @@ switch ($operation) {
         $book->fetchGenres();
         break;
     case 'fetchReservedBooks':
-        $book->fetchReservedBooks($json['user_id']);
+        $book->fetchReservedBooks($json);
         break;
     case 'reserveBook':
         $book->reserveBook($json['user_id'], $json['book_id']);
