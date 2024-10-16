@@ -186,4 +186,28 @@ switch ($operation) {
         echo json_encode("Invalid operation.");
         break;
 }
-?>
+
+
+
+
+
+
+// {
+//     "operation": "register",
+//     "json": { "name": "admin", "email": "admin@admin.com", "phone": "1234567890", "password": "admin", "role_id": "1" }
+//     "json": { "name": "librarian", "email": "librarian@librarian.com", "phone": "1234567890", "password": "librarian", "role_id": "2" }
+//     "json": { "name": "user", "email": "user@user.com", "phone": "1234567890", "password": "user", "role_id": "3" }
+
+
+
+
+
+
+//     "json": {
+//         "name": "user",
+//         "email": "user@user.com",
+//         "phone": "1234567890",
+//         "password": "user",
+//         "role_id": "3"
+//     }
+// }
