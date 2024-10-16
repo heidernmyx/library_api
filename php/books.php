@@ -144,8 +144,7 @@ public function reserveBook($userId, $bookId) {
 
 public function borrowBook($userId, $reservationId) {
     try {
-        // Check if reservation exists and is active
-        $stmt = $this->pdo->prepare("SELECT BookID FROM reservations WHERE ReservationID = ? AND StatusID = 1");
+        $stmt = $this->pdo->prepare("SELECT BookID FROM reservations WHERE ReservationID = ? AND StatusID = 6");
         $stmt->execute([$reservationId]);
         $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -161,7 +160,11 @@ public function borrowBook($userId, $reservationId) {
             $stmt->execute([$reservationId]);
 
             // Log the borrowing action (you might need a borrowing table for tracking)
-            $stmt = $this->pdo->prepare("INSERT INTO borrowed_books (UserID, BookID, BorrowDate) VALUES (?, ?, CURDATE())");
+        $stmt = $this->pdo->prepare("
+    INSERT INTO borrowed_books (UserID, BookID, BorrowDate, DueDate) 
+    VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 5 DAY))
+");
+
             $stmt->execute([$userId, $bookId]);
 
             echo json_encode(['success' => true, 'message' => 'Book borrowed successfully.']);
@@ -209,13 +212,79 @@ GROUP BY
 
     echo json_encode($data);
 }
+public function fetchBorrowedBooks($userId = null) {
+    try {
+        // Base query
+        $sql = "
+         SELECT
+    bb.BorrowID,
+    u.Name,
+    b.BookID,
+    b.Title,
+    a.AuthorName,
+    bb.BorrowDate,
+    bb.DueDate,
+    bb.ReturnDate,
+    rs.StatusName,
+    b.ISBN,
+    b.PublicationDate,
+    bp.ProviderName,
+    bb.PenaltyFees
+FROM
+    borrowed_books bb
+JOIN users u ON
+    bb.UserID = u.UserID
+JOIN books b ON
+    bb.BookID = b.BookID
+LEFT JOIN authors a ON
+    b.AuthorID = a.AuthorID
+LEFT JOIN book_providers bp ON
+    b.ProviderID = bp.ProviderID
+LEFT JOIN reservation_status rs ON
+    bb.StatusID = rs.StatusID
+WHERE
+    bb.StatusID != 2 -- You can modify this condition based on your requirements
+ORDER BY
+    bb.BorrowDate
+DESC
+    ;
+
+           
+        ";
+
+        // Modify query if userId is provided
+        if ($userId !== null) {
+            // If userId is provided, filter results by user
+            $sql .= " AND reservations.UserID = ? ORDER BY reservations.ReservationDate DESC";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([$userId]);
+        } else {
+            // If userId is null, fetch all borrowed books
+            $sql .= " ORDER BY reservations.ReservationDate DESC";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute();
+        }
+
+        // Fetch data
+        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Return the result
+        echo json_encode(['success' => true, 'borrowed_books' => $data]);
+    } catch (\PDOException $e) {
+        // Handle errors
+        http_response_code(500); // Internal Server Error
+        echo json_encode(['success' => false, 'message' => 'Failed to fetch borrowed books.', 'error' => $e->getMessage()]);
+    }
+}
+
 
 public function fetchReservedBooks($userId = null) {
     try {
         // Base query
         $sql = "
-            SELECT 
+              SELECT 
                 reservations.ReservationID,
+                users.Name,
                 books.BookID,
                 books.Title,
                 authors.AuthorName,
@@ -235,12 +304,16 @@ public function fetchReservedBooks($userId = null) {
                 book_providers ON books.ProviderID = book_providers.ProviderID
             LEFT JOIN 
                 reservation_status ON reservations.StatusID = reservation_status.StatusID
+            JOIN
+            	users ON reservations.UserID=users.UserID
+            WHERE 
+                reservations.StatusID != 2 -- Exclude reservations with StatusID = 2
         ";
 
         // Modify query if userId is provided
         if ($userId !== null) {
             // If userId is provided, filter results by user
-            $sql .= " WHERE reservations.UserID = ? ORDER BY reservations.ReservationDate DESC";
+            $sql .= " AND reservations.UserID = ? ORDER BY reservations.ReservationDate DESC";
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([$userId]);
         } else {
@@ -263,15 +336,37 @@ public function fetchReservedBooks($userId = null) {
 }
 
 
+public function updateReservationStatus($reservation_id, $status_id){
+    try{
+        $stmt = $this->pdo->prepare("UPDATE reservations SET StatusID = ? WHERE ReservationID = ?");
+        $stmt->execute([$status_id, $reservation_id]);
+        echo json_encode(['success' => true, 'message' => 'Reservation status updated successfully.']);
+    } catch (\PDOException $e) {
+        http_response_code(500); // Internal Server Error
+        echo json_encode(['success' => false, 'message' => 'Failed to update reservation status.', 'error' => $e->getMessage()]);
 
+    }
 
-    public function fetchGenres() {
+}
+
+public function fetchGenres() {
         $stmt = $this->pdo->prepare("SELECT * FROM genres");
         $stmt->execute();
         $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         echo json_encode($data);
     }
+
+
+
+
+public function fetchStatus() {
+    $stmt = $this->pdo->prepare("SELECT * FROM reservation_status");
+    $stmt->execute();
+    $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode($data);
+}
 
 public function updateBooks($json) {
     if (empty($json['book_id'])) {
@@ -360,7 +455,14 @@ switch ($operation) {
         $book->fetchGenres();
         break;
     case 'fetchReservedBooks':
-        $book->fetchReservedBooks($json);
+        if (isset($json['user_id'])) {
+        $book->fetchReservedBooks($json['user_id']);
+    } else {
+        $book->fetchReservedBooks(); // Call with no userId
+    }
+    break;
+    case 'fetchStatus':
+        $book->fetchStatus();
         break;
     case 'reserveBook':
         $book->reserveBook($json['user_id'], $json['book_id']);
@@ -368,6 +470,16 @@ switch ($operation) {
     case 'borrowBook':
         $book->borrowBook($json['user_id'], $json['reservation_id']);
         break; 
+    case 'fetchBorrowedBooks':
+        if (isset($json['user_id'])) {
+            $book->fetchBorrowedBooks($json['user_id']);
+        } else {
+            $book->fetchBorrowedBooks(); // Call with no userId
+        }
+        break;
+    case 'updateReservationStatus':
+        $book->updateReservationStatus($json['reservation_id'], $json['status_id']);
+        break;
     default:
         http_response_code(400); // Bad Request
         echo json_encode(['success' => false, 'message' => 'Invalid operation.']);
