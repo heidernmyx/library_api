@@ -195,7 +195,7 @@ class Book {
             $this->pdo->beginTransaction();
 
             // Find the borrowed book record
-            $stmt = $this->pdo->prepare("SELECT * FROM borrowed_books WHERE UserID = ? AND BookID = ? AND StatusID = 1");
+            $stmt = $this->pdo->prepare("SELECT * FROM borrowed_books WHERE UserID = ? AND BookID = ? AND StatusID = 4");
             $stmt->execute([$userId, $bookId]);
             $borrowedBook = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -234,7 +234,56 @@ class Book {
         }
     }
 
-    // **Fetch Books**
+public function fetchReturnedBooks() {
+    try {
+        // Fetch borrowed books with StatusID indicating returned
+        $stmt = $this->pdo->prepare("
+            SELECT
+                bb.BorrowID,
+                u.Name AS UserName,
+                b.BookID,
+                b.Title,
+                a.AuthorName,
+                bb.BorrowDate,
+                bb.DueDate,
+                bb.ReturnDate,
+                rs.StatusName AS BorrowStatus,
+                b.ISBN,
+                b.PublicationDate,
+                bp.ProviderName,
+                bb.PenaltyFees
+            FROM
+                borrowed_books bb
+            JOIN users u ON
+                bb.UserID = u.UserID
+            JOIN books b ON
+                bb.BookID = b.BookID
+            LEFT JOIN authors a ON
+                b.AuthorID = a.AuthorID
+            LEFT JOIN book_providers bp ON
+                b.ProviderID = bp.ProviderID
+            LEFT JOIN reservation_status rs ON
+                bb.StatusID = rs.StatusID
+            WHERE
+                bb.StatusID = 2 -- Assuming 2 represents 'Returned'
+            ORDER BY
+                bb.ReturnDate DESC
+        ");
+        $stmt->execute();
+
+        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode(['success' => true, 'returned_books' => $data]);
+    } catch (\PDOException $e) {
+        http_response_code(500); // Internal Server Error
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to fetch returned books.',
+            'error' => $e->getMessage()
+        ]);
+    }
+}
+
     public function fetchBooks() {
         $stmt = $this->pdo->prepare(
             "SELECT
@@ -413,6 +462,40 @@ class Book {
         echo json_encode($data);
     }
 
+public function confirmReturn($borrowId) {
+    try {
+        $this->pdo->beginTransaction();
+
+        // Fetch borrowed book details
+        $stmt = $this->pdo->prepare("SELECT CopyID FROM borrowed_books WHERE BorrowID = ? AND StatusID = 2");
+        $stmt->execute([$borrowId]);
+        $borrowedBook = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($borrowedBook) {
+            $copyId = $borrowedBook['CopyID'];
+
+            // Update book copy to be available
+            $stmt = $this->pdo->prepare("UPDATE book_copies SET IsAvailable = 1 WHERE CopyID = ?");
+            $stmt->execute([$copyId]);
+
+            // Update borrowed_books StatusID to 3 (Confirmed)
+            $stmt = $this->pdo->prepare("UPDATE borrowed_books SET StatusID = 3 WHERE BorrowID = ?");
+            $stmt->execute([$borrowId]);
+
+            $this->pdo->commit();
+            echo json_encode(['success' => true, 'message' => 'Return confirmed and book is now available for borrowing.']);
+        } else {
+            $this->pdo->rollBack();
+            echo json_encode(['success' => false, 'message' => 'Borrowed book not found or already confirmed.']);
+        }
+    } catch (\PDOException $e) {
+        $this->pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Failed to confirm return.', 'error' => $e->getMessage()]);
+    }
+}
+
+
     // **Update Book Details**
     public function updateBooks($json) {
         if (empty($json['book_id'])) {
@@ -501,6 +584,12 @@ switch ($operation) {
         break;
     case 'fetchStatus':
         $book->fetchStatus();
+        break;
+    case 'fetchReturnedBooks':
+        $book->fetchReturnedBooks();
+        break;
+     case 'confirmReturn':
+        $book->confirmReturn($json['borrow_id']);
         break;
     case 'reserveBook':
         $book->reserveBook($json['user_id'], $json['book_id']);
