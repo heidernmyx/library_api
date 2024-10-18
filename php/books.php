@@ -7,15 +7,17 @@ header('Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers
 
 // Include the database connection and Notification class
 include '../php/connection/connection.php'; // Ensure the path is correct
-require_once 'Notification.php'; // Include the Notification class
-
+require_once 'notification.php'; // Include the Notification class
+// require_once 'bookpublisher.php';
 class Book {
     private $pdo;
     private $notification;
+    // private $bookpublisher;
 
     public function __construct($pdo) {
         $this->pdo = $pdo;
         $this->notification = new Notification($pdo); // Initialize Notification class
+        // $this->bookpublisher = new BookPublisher($pdo);
     }
 
     /**
@@ -66,6 +68,8 @@ class Book {
             $message = "A new book '{$json['title']}' has been added to the library.";
             $notificationTypeId = 9; // 9 = 'New Book Added'
             $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
+            $this->notification->addNotification(null, "A new book '{$json['title']}' has been added to the library.", 9);
+
 
             echo json_encode(['success' => true, 'message' => 'Book added successfully.', 'book_id' => $bookId]);
         } catch (\PDOException $e) {
@@ -89,6 +93,8 @@ class Book {
                 VALUES (?, ?, 1)
             ");
             $stmt->execute([$bookId, $i]);
+            $this->notification->addNotificationForLibrarians("A new copy of Book ID: $bookId has been added.", 17); // 10 = 'New Copy Added'
+                echo json_encode(['success' => true, 'message' => 'Book copies added successfully.', 'book_id' => $bookId]);
         }
     }
 
@@ -128,6 +134,7 @@ class Book {
             // Insert a new author
             $stmt = $this->pdo->prepare("INSERT INTO authors (AuthorName) VALUES (?)");
             $stmt->execute([$authorName]);
+            $this->notification->addNotificationForLibrarians("A new author '$authorName' has been added.", 18); // 16 = 'New Author Added'
             return $this->pdo->lastInsertId();
         }
     }
@@ -200,7 +207,7 @@ class Book {
 
             // **Add notification for the librarian**
             $bookTitle = $this->getBookTitle($bookId);
-            $message = "A new reservation has been made for '{$bookTitle}' by User ID: $userId.";
+            $message = "A new reservation has been made for '{$bookTitle}' by User ID: $userId. Please review the reservation";
             $notificationTypeId = 1; // 1 = 'Reservation Made'
             $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
 
@@ -265,13 +272,14 @@ class Book {
                     ");
                     $stmt->execute([$userId, $bookId, $copyId]);
 
-                    // **Add notification for the user**
+
                     $dueDate = date('Y-m-d', strtotime('+14 days'));
                     $bookTitle = $this->getBookTitle($bookId);
                     $message = "You have successfully borrowed '{$bookTitle}'. Due date is $dueDate.";
                     $notificationTypeId = 2; // 2 = 'Book Borrowed'
+                    $userName = $this->getUsersName($userId);
                     $this->notification->addNotification($userId, $message, $notificationTypeId);
-
+                    $this->notification->addNotificationForLibrarians("$userName has borrowed '{$bookTitle}'.", 2); // 2 = 'Book Borrowed'
                     $this->pdo->commit();
 
                     echo json_encode(['success' => true, 'message' => 'Book borrowed successfully.']);
@@ -303,7 +311,12 @@ class Book {
         $book = $stmt->fetch(PDO::FETCH_ASSOC);
         return $book ? $book['Title'] : 'Unknown Title';
     }
-
+    private function getUsersName($userId){
+        $stmt = $this->pdo->prepare("SELECT Name FROM users WHERE UserId = ?");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $user ? $user['Name'] : 'Unknown User';
+    }
     /**
      * **Return a Book**
      * Handles the return of a borrowed book.
@@ -347,7 +360,8 @@ class Book {
 
                 // **Add notification for the librarian**
                 $bookTitle = $this->getBookTitle($bookId);
-                $message = "User ID: $userId has returned '{$bookTitle}'. Please confirm the return.";
+                $userName = $this->getUsersName($userId);
+                $message = " $userName has returned '{$bookTitle}'. Please confirm the return.";
                 $notificationTypeId = 3; // 3 = 'Book Returned'
                 $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
 
@@ -481,27 +495,35 @@ class Book {
     public function fetchBooks() {
         try {
             $stmt = $this->pdo->prepare("
-                SELECT
-                    books.BookID,
-                    books.Title,
-                    authors.AuthorName,
-                    books.ISBN,
-                    books.PublicationDate,
-                    book_providers.ProviderName,
-                    COUNT(book_copies.CopyID) AS TotalCopies,
-                    SUM(CASE WHEN book_copies.IsAvailable = 1 THEN 1 ELSE 0 END) AS AvailableCopies,
-                    GROUP_CONCAT(genres.GenreName SEPARATOR ', ') AS Genres
-                FROM
-                    books
-                LEFT JOIN authors ON books.AuthorID = authors.AuthorID
-                LEFT JOIN book_providers ON books.ProviderID = book_providers.ProviderID
-                LEFT JOIN book_copies ON books.BookID = book_copies.BookID
-                LEFT JOIN books_genre ON books.BookID = books_genre.BookID
-                LEFT JOIN genres ON books_genre.GenreID = genres.GenreID
-                GROUP BY
-                    books.BookID
-                ORDER BY
-                    books.Title ASC
+              SELECT
+                books.BookID,
+                books.Title,
+                authors.AuthorName,
+                publisher.PublisherName,
+                books.ISBN,
+                books.PublicationDate,
+                book_providers.ProviderName,
+                COUNT(DISTINCT book_copies.CopyID) AS TotalCopies,
+                SUM(
+                    CASE WHEN book_copies.IsAvailable = 1 THEN 1 ELSE 0
+                END
+            ) AS AvailableCopies,
+            GROUP_CONCAT(
+                DISTINCT genres.GenreName SEPARATOR ', '
+            ) AS Genres
+            FROM
+                books
+            LEFT JOIN authors ON books.AuthorID = authors.AuthorID
+            LEFT JOIN book_providers ON books.ProviderID = book_providers.ProviderID
+            LEFT JOIN book_copies ON books.BookID = book_copies.BookID
+            LEFT JOIN books_genre ON books.BookID = books_genre.BookID
+            LEFT JOIN genres ON books_genre.GenreID = genres.GenreID
+            LEFT JOIN publisher ON books.PublisherID = publisher.PublisherID
+            GROUP BY
+                books.BookID
+            ORDER BY
+                books.Title ASC;
+
             ");
             $stmt->execute();
             $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -877,13 +899,12 @@ class Book {
  * @param int $userId
  * @return void
  */
-public function markNotificationAsRead($notificationId, $userId) {
-    $success = $this->notification->markNotificationAsRead($notificationId, $userId);
+public function markNotificationAsRead($notificationId) {
+    $success = $this->notification->markNotificationAsRead($notificationId);
     if ($success) {
         echo json_encode(['success' => true, 'message' => 'Notification marked as read.']);
     } else {
-        // If the notification was not found or already read, use 404 Not Found
-        // Otherwise, use 500 Internal Server Error
+      
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Notification not found or already marked as read.']);
     }
@@ -1028,12 +1049,12 @@ switch ($operation) {
         }
         break;
    case 'markNotificationAsRead':
-    if ( isset($json['user_id'])) {
+    if ( isset($json['notificationId'])) {
  
 
-        $userId = $json['user_id']; 
+        $notificationId = $json['notificationId']; 
 
-        $book->markNotificationAsRead($user_id);
+        $book->markNotificationAsRead($notificationId);
     } else {
         http_response_code(400); // Bad Request
         echo json_encode(['success' => false, 'message' => 'User ID are required.']);

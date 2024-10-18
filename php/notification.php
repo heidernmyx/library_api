@@ -58,14 +58,14 @@ class Notification {
      * @param int $notificationId
      * @return bool
      */
-    public function markNotificationAsRead($user_id) {
+    public function markNotificationAsRead($notificationId) {
         try {
             $stmt = $this->pdo->prepare("
                 UPDATE notifications 
                 SET Status = 'Read' 
                 WHERE NotificationID = ?
             ");
-            return $stmt->execute([$user_id]);
+            return $stmt->execute([$notificationId]);
         } catch (\PDOException $e) {
             // Handle exception or log error
             return false;
@@ -74,16 +74,23 @@ class Notification {
 
     /**
      * **Add Notification for Librarians**
-     * Adds a notification to all librarians.
+     * Adds a notification to all librarians and Admins.
      *
      * @param string $message
      * @param int $notificationTypeId
      */
     public function addNotificationForLibrarians($message, $notificationTypeId) {
         try {
-            // Assuming you have a way to fetch all librarian user IDs
             $stmt = $this->pdo->prepare("
-                SELECT UserID FROM users WHERE Role IN ('Librarian', 'Admin')
+                                        SELECT
+                                            UserID,
+                                            user_roles.RoleID,
+                                            user_roles.RoleName
+                                        FROM
+                                            `users`
+                                        JOIN user_roles ON user_roles.RoleID = users.RoleID
+                                        WHERE
+                                            user_roles.RoleID IN (1,2) 
             ");
             $stmt->execute();
             $librarians = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -113,17 +120,41 @@ class Notification {
      * @param string $message
      * @param int $notificationTypeId
      */
-    public function addNotification($userId, $message, $notificationTypeId) {
-        try {
+   public function addNotification($userId, $message, $notificationTypeId) {
+    try {
+        // If $userId is null, send the notification to all users except those with roleID 1 or 2
+        if ($userId === null) {
+            // Get all users except those with roleID 1 or 2
+            $stmt = $this->pdo->prepare("
+                SELECT UserID 
+                FROM users 
+                WHERE RoleID NOT IN (1, 2)
+            ");
+            $stmt->execute();
+            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Loop through each user and send the notification
+            foreach ($users as $user) {
+                $stmt = $this->pdo->prepare("
+                    INSERT INTO notifications (UserID, Message, DateSent, Status, NotificationTypeID)
+                    VALUES (?, ?, NOW(), 'Unread', ?)
+                ");
+                $stmt->execute([$user['UserID'], $message, $notificationTypeId]);
+            }
+
+        } else {
+            // If $userId is provided, send the notification to that specific user
             $stmt = $this->pdo->prepare("
                 INSERT INTO notifications (UserID, Message, DateSent, Status, NotificationTypeID)
                 VALUES (?, ?, NOW(), 'Unread', ?)
             ");
             $stmt->execute([$userId, $message, $notificationTypeId]);
-        } catch (\PDOException $e) {
-            // Handle exception or log error
         }
+    } catch (\PDOException $e) {
+        // Handle exception or log error
     }
+}
+
 
     /**
      * **Send Overdue Notices**
