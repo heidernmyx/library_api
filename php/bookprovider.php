@@ -124,6 +124,32 @@ public function fetchBookProviders() {
     }
   }
 
+  public function fetchBookProvided($json) {
+
+    $sql = 'SELECT
+        books.BookID,
+          books.Title,
+          books.ISBN,
+          books.PublicationDate,
+          authors.AuthorName
+      FROM
+          books
+      INNER JOIN authors ON authors.AuthorID = books.AuthorID
+      WHERE books.ProviderID = :ProviderID';
+    
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->bindParam(':ProviderID', $json["ProviderID"], PDO::PARAM_INT);
+    $stmt->execute();
+
+    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // unset($stmt);
+    unset($this->pdo);
+
+    echo json_encode($result);
+
+  }
+
   public function updateBookProvider ($json) {
     
     try {
@@ -230,6 +256,9 @@ switch($operation) {
   case 'updateBookProvider':
     $bookProvider->updateBookProvider($json);
     break;
+  case 'fetchBookProvided':
+    $bookProvider->fetchBookProvided($json);
+    break;
   default:
     echo json_encode(['success' => false, 'message' => 'Invalid operation.']);
     break;
@@ -244,3 +273,16 @@ switch($operation) {
 // key: json, 
 // value: { "email": "hei@gmail.com", "phone": "01122334455", "street" : "Bull's Eye Street", "city": "Cagayan de Oro", "state": "Misamis Oriental", "country": "Philippines", "postalCode": "9000", "providerName": "Basta Provider" }
 
+
+
+
+// SELECT
+// 	books.BookID,
+//     books.Title,
+//     books.ISBN,
+//     books.PublicationDate,
+//     authors.AuthorName
+// FROM
+//     books
+// INNER JOIN authors ON authors.AuthorID = books.AuthorID
+// WHERE books.ProviderID = 1;

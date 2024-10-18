@@ -203,11 +203,11 @@ switch ($operation) {
 
 
 
-//     "json": {
-//         "name": "user",
-//         "email": "user@user.com",
-//         "phone": "1234567890",
-//         "password": "user",
-//         "role_id": "3"
-//     }
+    // "json": {
+    //     "name": "user",
+    //     "email": "user@user.com",
+    //     "phone": "1234567890",
+    //     "password": "user",
+    //     "role_id": "3"
+    // }
 // }
