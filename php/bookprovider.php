@@ -133,6 +133,7 @@ public function fetchBookProviders() {
         GROUP_CONCAT(genres.GenreName) as Genres,
         books.PublicationDate,
         authors.AuthorName,
+        books.Description,
         publisher.PublisherName
     FROM
         books
@@ -152,7 +153,7 @@ public function fetchBookProviders() {
     foreach ($result as &$row) {
         $row['Genres'] = explode(',', $row['Genres']);
     }
-    
+
     unset($stmt);
     unset($this->pdo);
 
