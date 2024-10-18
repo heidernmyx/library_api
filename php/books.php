@@ -498,6 +498,7 @@ class Book {
               SELECT
                 books.BookID,
                 books.Title,
+                books.Description,
                 authors.AuthorName,
                 publisher.PublisherName,
                 books.ISBN,
@@ -732,7 +733,7 @@ class Book {
             // Update book details
             $stmt = $this->pdo->prepare("
                 UPDATE books 
-                SET Title = ?, AuthorID = ?, ISBN = ?, PublicationDate = ?, ProviderID = ?
+                SET Title = ?, AuthorID = ?, ISBN = ?, PublicationDate = ?, ProviderID = ?, Description = ?
                 WHERE BookID = ?
             ");
             $stmt->execute([
@@ -741,6 +742,7 @@ class Book {
                 $json['isbn'], 
                 $json['publication_date'], 
                 $json['provider_id'], 
+                $json['description'],
                 $json['book_id']
             ]);
 
@@ -802,6 +804,7 @@ class Book {
                !empty($json['author']) && 
                isset($json['genres']) && is_array($json['genres']) && 
                !empty($json['isbn']) && 
+               !empty($json['description'])&&
                !empty($json['publication_date']) &&
                !empty($json['provider_id']);
     }
