@@ -128,14 +128,20 @@ public function fetchBookProviders() {
 
     $sql = 'SELECT
         books.BookID,
-          books.Title,
-          books.ISBN,
-          books.PublicationDate,
-          authors.AuthorName
-      FROM
-          books
-      INNER JOIN authors ON authors.AuthorID = books.AuthorID
-      WHERE books.ProviderID = :ProviderID';
+        books.Title,
+        books.ISBN,
+        GROUP_CONCAT(genres.GenreName) as Genres,
+        books.PublicationDate,
+        authors.AuthorName,
+        publisher.PublisherName
+    FROM
+        books
+    INNER JOIN authors ON authors.AuthorID = books.AuthorID
+    INNER JOIN books_genre ON books_genre.BookId = books.BookID
+    INNER JOIN genres ON genres.GenreId = books_genre.GenreId
+    INNER JOIN publisher ON publisher.PublisherID = books.PublisherID
+    WHERE books.ProviderID = :ProviderID
+    GROUP BY books.BookID';
     
     $stmt = $this->pdo->prepare($sql);
     $stmt->bindParam(':ProviderID', $json["ProviderID"], PDO::PARAM_INT);
@@ -143,7 +149,11 @@ public function fetchBookProviders() {
 
     $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // unset($stmt);
+    foreach ($result as &$row) {
+        $row['Genres'] = explode(',', $row['Genres']);
+    }
+    
+    unset($stmt);
     unset($this->pdo);
 
     echo json_encode($result);
