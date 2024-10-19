@@ -718,11 +718,11 @@ class Book {
      * @param array $json
      */
     public function updateBooks($json) {
-        if (!$this->validateUpdateInput($json)) {
-            http_response_code(400); // Bad Request
-            echo json_encode(['success' => false, 'message' => 'Invalid input.']);
-            return;
-        }
+        // if (!$this->validateUpdateInput($json)) {
+        //     http_response_code(400); // Bad Request
+        //     echo json_encode(['success' => false, 'message' => 'Invalid input.']);
+        //     return;
+        // }
 
         try {
             $this->pdo->beginTransaction();
