@@ -4,12 +4,14 @@ header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 
 include '../php/connection/connection.php'; // Assuming connection.php establishes a valid PDO connection.
-
+require_once 'notification.php';
 class Genre {
   private $pdo;
+  private $notification;
 
   public function __construct($pdo) {
     $this->pdo = $pdo;
+    $this->notification = new Notification($pdo);
   }
 
   // Fetch all genres
@@ -43,7 +45,9 @@ class Genre {
     $stmt->bindParam(':genreName', $json['genreName'], PDO::PARAM_STR);
     $stmt->execute();
     $result = $stmt->rowCount() > 0 ? 1 : 0;
-
+    $message = `Genre Added: ${$json['genreName']}`;
+    $notificationTypeId = 16;
+    $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
     unset($this->pdo);
     unset($stmt);
 
@@ -71,7 +75,9 @@ class Genre {
     $stmt->bindParam(':genreID', $json['genreID'], PDO::PARAM_INT);
     $stmt->execute();
     $result = $stmt->rowCount() > 0 ? 1 : 0;
-
+    $message = 'Genre updated ';
+    $notificationTypeId = 15;
+    $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
     unset($this->pdo);
     unset($stmt);
 
