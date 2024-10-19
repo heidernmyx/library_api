@@ -26,58 +26,60 @@ class Book {
      *
      * @param array $json
      */
-    public function addBook($json) {
-        if (!$this->validateBookInput($json)) {
-            http_response_code(400); // Bad Request
-            echo json_encode(['success' => false, 'message' => 'Invalid input.']);
-            exit;
-        }
-
-        try {
-            $this->pdo->beginTransaction();
-
-            // Check if author exists, if not, insert a new author
-            $authorId = $this->getOrCreateAuthor($json['author']);
-
-            // Insert the new book
-            $stmt = $this->pdo->prepare("
-                INSERT INTO books (Title, AuthorID, ISBN, PublicationDate, ProviderID)
-                VALUES (?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([
-                $json['title'], 
-                $authorId, 
-                $json['isbn'], 
-                $json['publication_date'], 
-                $json['provider_id']
-            ]);
-
-            $bookId = $this->pdo->lastInsertId();
-
-            // Handle genres
-            $this->handleGenres($json['genres'], $bookId);
-
-            // Add book copies
-            if (isset($json['copies']) && is_numeric($json['copies'])) {
-                $this->addBookCopies($bookId, intval($json['copies']));
-            }
-
-            $this->pdo->commit();
-
-            // **Add notification for librarians about new book**
-            $message = "A new book '{$json['title']}' has been added to the library.";
-            $notificationTypeId = 9; // 9 = 'New Book Added'
-            $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
-            $this->notification->addNotification(null, "A new book '{$json['title']}' has been added to the library.", 9);
-
-
-            echo json_encode(['success' => true, 'message' => 'Book added successfully.', 'book_id' => $bookId]);
-        } catch (\PDOException $e) {
-            $this->pdo->rollBack();
-            http_response_code(500); // Internal Server Error
-            echo json_encode(['success' => false, 'message' => 'Failed to add book.', 'error' => $e->getMessage()]);
-        }
+   public function addBook($json) {
+    if (!$this->validateBookInput($json)) {
+        http_response_code(400); // Bad Request
+        echo json_encode(['success' => false, 'message' => 'Invalid input.']);
+        exit;
     }
+
+    try {
+        $this->pdo->beginTransaction();
+
+        // Check if author exists, if not, insert a new author
+        $authorId = $this->getOrCreateAuthor($json['author']);
+
+        // Insert the new book
+        $stmt = $this->pdo->prepare("
+            INSERT INTO books (Title, AuthorID, ISBN, PublicationDate, ProviderID, PublisherID, Description)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $json['title'], 
+            $authorId, 
+            $json['isbn'], 
+            $json['publication_date'], 
+            $json['provider_id'],
+            $json['publisher_id'],
+            $json['description']
+        ]);
+
+        $bookId = $this->pdo->lastInsertId();
+
+        // Handle genres
+        $this->handleGenres($json['genres'], $bookId);
+
+        // Add book copies
+        if (isset($json['copies']) && is_numeric($json['copies'])) {
+            $this->addBookCopies($bookId, intval($json['copies']));
+        }
+
+        $this->pdo->commit();
+
+        // **Add notification for librarians about new book**
+        $message = "A new book '{$json['title']}' has been added to the library.";
+        $notificationTypeId = 9; // 9 = 'New Book Added'
+        $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
+        $this->notification->addNotification(null, "A new book '{$json['title']}' has been added to the library.", 9);
+
+        echo json_encode(['success' => true, 'message' => 'Book added successfully.', 'book_id' => $bookId]);
+    } catch (\PDOException $e) {
+        $this->pdo->rollBack();
+        http_response_code(500); // Internal Server Error
+        echo json_encode(['success' => false, 'message' => 'Failed to add book.', 'error' => $e->getMessage()]);
+    }
+}
+
 
     /**
      * **Add Book Copies**
@@ -86,17 +88,19 @@ class Book {
      * @param int $bookId
      * @param int $copies
      */
-    private function addBookCopies($bookId, $copies) {
-        for ($i = 1; $i <= $copies; $i++) {
-            $stmt = $this->pdo->prepare("
-                INSERT INTO book_copies (BookID, CopyNumber, IsAvailable)
-                VALUES (?, ?, 1)
-            ");
-            $stmt->execute([$bookId, $i]);
-            $this->notification->addNotificationForLibrarians("A new copy of Book ID: $bookId has been added.", 17); // 10 = 'New Copy Added'
-                echo json_encode(['success' => true, 'message' => 'Book copies added successfully.', 'book_id' => $bookId]);
-        }
+  private function addBookCopies($bookId, $copies) {
+    for ($i = 1; $i <= $copies; $i++) {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO book_copies (BookID, CopyNumber, IsAvailable)
+            VALUES (?, ?, 1)
+        ");
+        $stmt->execute([$bookId, $i]);
+        $this->notification->addNotificationForLibrarians("A new copy of Book ID: $bookId has been added.", 17);
     }
+
+    // Only output the success message once, after all copies have been added.
+    echo json_encode(['success' => true, 'message' => 'Book added successfully.', 'book_id' => $bookId]);
+}
 
     /**
      * **Validate Book Input**
@@ -113,31 +117,95 @@ class Book {
                !empty($json['publication_date']) &&
                !empty($json['provider_id']);
     }
+/**
+ * **Update Book Copies**
+ * Updates the number of copies for a book.
+ *
+ * @param int $bookId
+ * @param int $newCopies
+ */
+private function updateBookCopies($bookId, $newCopies) {
+    // Fetch the current number of copies for this book
+    $stmt = $this->pdo->prepare("
+        SELECT COUNT(*) as totalCopies FROM book_copies WHERE BookID = ?
+    ");
+    $stmt->execute([$bookId]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $currentCopies = $result['totalCopies'];
 
-    /**
-     * **Get or Create Author**
-     * Retrieves the AuthorID if the author exists, or creates a new author.
-     *
-     * @param string $authorName
-     * @return int
-     */
-    private function getOrCreateAuthor($authorName) {
-        // Check if the author exists
-        $stmt = $this->pdo->prepare("SELECT AuthorID FROM authors WHERE AuthorName = :name");
-        $stmt->bindParam(':name', $authorName, PDO::PARAM_STR);
-        $stmt->execute();
-        $author = $stmt->fetch(PDO::FETCH_ASSOC);
+    // If the new number of copies is greater than the current number, add more copies
+    if ($newCopies > $currentCopies) {
+        $copiesToAdd = $newCopies - $currentCopies;
+        for ($i = 1; $i <= $copiesToAdd; $i++) {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO book_copies (BookID, CopyNumber, IsAvailable)
+                VALUES (?, ?, 1)
+            ");
+            // Increment the CopyNumber accordingly
+            $stmt->execute([$bookId, $currentCopies + $i]);
+            $this->notification->addNotificationForLibrarians("A new copy of Book ID: $bookId has been added.", 17);
+        }
+    } 
+    // If the new number of copies is less than the current number, mark excess copies as unavailable
+    elseif ($newCopies < $currentCopies) {
+        $copiesToRemove = $currentCopies - $newCopies;
+        // Soft delete or mark copies as unavailable, starting from the highest copy number
+        $stmt = $this->pdo->prepare("
+            UPDATE book_copies 
+            SET IsAvailable = 0
+            WHERE BookID = ? 
+            ORDER BY CopyNumber DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$bookId, $copiesToRemove]);
+        $this->notification->addNotificationForLibrarians("Copies of Book ID: $bookId have been marked as unavailable.", 17);
+    }
 
-        if ($author) {
-            return $author['AuthorID'];
+    // Only output the success message once after updating all copies
+    return true;
+}
+
+
+
+/**
+ * **Get or Create Author**
+ * Retrieves the AuthorID if the author exists, or creates a new author.
+ *
+ * @param string $authorName
+ * @return int|false
+ */
+private function getOrCreateAuthor($authorName) {
+    // Check if the author exists
+    $stmt = $this->pdo->prepare("SELECT AuthorID FROM authors WHERE AuthorName = :name");
+    $stmt->bindParam(':name', $authorName, PDO::PARAM_STR);
+    $stmt->execute();
+    $author = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($author) {
+        // If the author exists, return the AuthorID
+        return $author['AuthorID'];
+    } else {
+        // Insert a new author
+        $stmt = $this->pdo->prepare("INSERT INTO authors (AuthorName) VALUES (?)");
+        $stmt->execute([$authorName]);
+
+        // Get the newly inserted AuthorID
+        $newAuthorId = $this->pdo->lastInsertId();
+
+        // Check if the insert was successful (shouldn't return 0 or false)
+        if ($newAuthorId && $newAuthorId > 0) {
+            // Notify librarians about new author
+            $this->notification->addNotificationForLibrarians("A new author '$authorName' has been added.", 18);
+            return $newAuthorId;
         } else {
-            // Insert a new author
-            $stmt = $this->pdo->prepare("INSERT INTO authors (AuthorName) VALUES (?)");
-            $stmt->execute([$authorName]);
-            $this->notification->addNotificationForLibrarians("A new author '$authorName' has been added.", 18); // 16 = 'New Author Added'
-            return $this->pdo->lastInsertId();
+            // Handle the case where the insert failed
+            echo "Failed to create new author."; // Debugging
+            return false; // Indicate failure to create author
         }
     }
+}
+
+
 
     /**
      * **Handle Genres**
@@ -207,7 +275,8 @@ class Book {
 
             // **Add notification for the librarian**
             $bookTitle = $this->getBookTitle($bookId);
-            $message = "A new reservation has been made for '{$bookTitle}' by User ID: $userId. Please review the reservation";
+            $userName = $this->getUsersName($userId);
+            $message = "A new reservation has been made for '{$bookTitle}' by $userName. Please review the reservation";
             $notificationTypeId = 1; // 1 = 'Reservation Made'
             $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
 
@@ -711,103 +780,118 @@ class Book {
         }
     }
 
-    /**
-     * **Update Book Details**
-     * Updates the details of an existing book.
-     *
-     * @param array $json
-     */
-    public function updateBooks($json) {
-        // if (!$this->validateUpdateInput($json)) {
-        //     http_response_code(400); // Bad Request
-        //     echo json_encode(['success' => false, 'message' => 'Invalid input.']);
-        //     return;
-        // }
+   /**
+ * **Update Book Details**
+ * Updates the details of an existing book.
+ *
+ * @param array $json
+ */
+public function updateBooks($json) {
+    if (!$this->validateUpdateInput($json)) {
+        http_response_code(400); // Bad Request
+        echo json_encode(['success' => false, 'message' => 'Invalid input.']);
+        return;
+    }
 
-        try {
-            $this->pdo->beginTransaction();
+    try {
+        $this->pdo->beginTransaction();
 
-            // Get author ID
-            $authorId = $this->getOrCreateAuthor($json['author']);
+        // Get or create the author and log the AuthorID
+        $authorId = $this->getOrCreateAuthor($json['author']);
 
-            // Update book details
-            $stmt = $this->pdo->prepare("
-                UPDATE books 
-                SET Title = ?, AuthorID = ?, ISBN = ?, PublicationDate = ?, ProviderID = ?, Description = ?
-                WHERE BookID = ?
-            ");
-            $stmt->execute([
-                $json['title'], 
-                $authorId, 
-                $json['isbn'], 
-                $json['publication_date'], 
-                $json['provider_id'], 
-                $json['description'],
-                $json['book_id']
-            ]);
+        // Update the book details with the correct AuthorID
+        $stmt = $this->pdo->prepare("
+            UPDATE books 
+            SET Title = ?, AuthorID = ?, ISBN = ?, PublicationDate = ?, ProviderID = ?, PublisherID = ?, Description = ?
+            WHERE BookID = ?
+        ");
+        $stmt->execute([
+            $json['title'], 
+            $authorId,  // Use the fetched or created AuthorID
+            $json['isbn'], 
+            $json['publication_date'], 
+            $json['provider_id'], 
+            $json['publisher_id'],
+            $json['description'],
+            $json['book_id']  // Book ID being updated
+        ]);
 
-            // Update genres
-            $this->handleGenres($json['genres'], $json['book_id']);
+        // Update genres
+        $this->handleGenres($json['genres'], $json['book_id']);
 
-            // Update copies
-            if (isset($json['copies']) && is_numeric($json['copies'])) {
-                $this->updateBookCopies($json['book_id'], intval($json['copies']));
-            }
+        if (isset($json['copies']) && is_numeric($json['copies'])) {
+            $this->updateBookCopies($json['book_id'], intval($json['copies']));
+        }
 
-            $this->pdo->commit();
+        // Commit the transaction
+        $this->pdo->commit();
 
-            // **Add notification for librarians about book update**
-            $message = "The book '{$json['title']}' has been updated.";
-            $notificationTypeId = 11; // 11 = 'Book Updated'
-            $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
+        // // Notify librarians about the book update
+        // $message = "The book '{$json['title']}' has been updated.";
+        // $this->notification->addNotificationForLibrarians($message, 11); // 11 = 'Book Updated'
 
-            echo json_encode(['success' => true, 'message' => 'Book updated successfully.']);
-        } catch (\PDOException $e) {
-            $this->pdo->rollBack();
+        echo json_encode(['success' => true]);
+    } catch (\PDOException $e) {
+        // Roll back the transaction in case of error
+        $this->pdo->rollBack();
+
+        // Check for foreign key constraint violations
+        if (strpos($e->getMessage(), '1451') !== false) {
+            http_response_code(409); // Conflict
+            echo json_encode(['success' => false, 'message' => 'Cannot update the book. There are borrowed copies that must be returned first.']);
+        } else {
             http_response_code(500); // Internal Server Error
             echo json_encode(['success' => false, 'message' => 'Failed to update book.', 'error' => $e->getMessage()]);
         }
     }
+}
 
-    /**
-     * **Update Book Copies**
-     * Updates the number of copies for a book.
-     *
-     * @param int $bookId
-     * @param int $newCopies
-     */
-    private function updateBookCopies($bookId, $newCopies) {
-        // Delete all existing copies
-        $stmt = $this->pdo->prepare("DELETE FROM book_copies WHERE BookID = ?");
-        $stmt->execute([$bookId]);
-
-        // Add the new number of copies
-        for ($i = 1; $i <= $newCopies; $i++) {
-            $stmt = $this->pdo->prepare("
-                INSERT INTO book_copies (BookID, CopyNumber, IsAvailable)
-                VALUES (?, ?, 1)
-            ");
-            $stmt->execute([$bookId, $i]);
-        }
+/**
+ * **Validate Update Input**
+ * Validates the input data for updating a book.
+ *
+ * @param array $json
+ * @return bool
+ */
+private function validateUpdateInput($json) {
+    // Check if book_id is present and numeric
+    if (empty($json['book_id']) || !is_numeric($json['book_id'])) {
+        return false;
     }
 
-    /**
-     * **Validate Update Input**
-     * Validates the input data for updating a book.
-     *
-     * @param array $json
-     * @return bool
-     */
-    private function validateUpdateInput($json) {
-        return !empty($json['book_id']) && 
-               !empty($json['title']) && 
-               !empty($json['author']) && 
-               isset($json['genres']) && is_array($json['genres']) && 
-               !empty($json['isbn']) && 
-               !empty($json['description'])&&
-               !empty($json['publication_date']) &&
-               !empty($json['provider_id']);
+    // Check if title and author are non-empty strings
+    if (empty($json['title']) || empty($json['author'])) {
+        return false;
     }
+
+    // Check if genres are provided and is an array (ensure it's not an empty array)
+    if (!isset($json['genres']) || !is_array($json['genres']) || empty($json['genres'])) {
+        return false;
+    }
+
+    // Check if ISBN is provided and is a valid ISBN (optional: add more robust validation if needed)
+    if (empty($json['isbn']) || !preg_match('/^[\d\-]+$/', $json['isbn'])) {
+        return false;
+    }
+
+    // Check if description is non-empty
+    if (empty($json['description'])) {
+        return false;
+    }
+
+    // Check if publication_date is provided and is in a valid date format (YYYY-MM-DD)
+    if (empty($json['publication_date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $json['publication_date'])) {
+        return false;
+    }
+
+    // Check if provider_id is present and numeric
+    if (empty($json['provider_id']) || !is_numeric($json['provider_id'])) {
+        return false;
+    }
+
+    // All checks passed, return true
+    return true;
+}
 
     /**
      * **Fetch All Borrowed Books**
@@ -847,16 +931,24 @@ class Book {
                 ");
                 $stmt->execute([$statusId, $reservationId]);
 
-                // Determine notification based on new status
-                switch ($statusId) {
-                    case 10: // 'Reservation Canceled'
+                switch ($statusId ) {
+                    
+                    case 2: 
+                        $message = "Your reservation for '{$reservation['Title']}' has been fulfilled.";
+                        $notificationTypeId = 6; // 6 = 'Reservation Fulfilled'
+                        $this->notification->addNotification($reservation['UserID'], $message, $notificationTypeId);
+                        break;
+                    case 6:
+                        $message = "Your reservation for '{$reservation['Title']}' has been Approved.";
+                        $notificationTypeId = 1; // 7 = 'Reservation Borrowed'
+                        $this->notification->addNotification($reservation['UserID'], $message, $notificationTypeId);
+                        break;
+                    case 10: 
                         $message = "Your reservation for '{$reservation['Title']}' has been canceled.";
                         $notificationTypeId = 10; // 10 = 'Reservation Canceled'
                         $this->notification->addNotification($reservation['UserID'], $message, $notificationTypeId);
                         break;
-                    // Add more cases as needed for different statuses
                     default:
-                        // Handle other statuses if necessary
                         break;
                 }
 
