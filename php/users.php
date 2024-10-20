@@ -14,68 +14,87 @@ class User {
     }
 
     public function register($json) {
-        // Extract and sanitize input data
-        // $name = isset($data['name']) ? trim($json['name']) : '';
-        // $email = isset($data['email']) ? trim($json['email']) : '';
-        // $phone = isset($data['phone']) ? trim($json['phone']) : '';
-        // $password = isset($data['password']) ? $json['password'] : '';
-        // $roleId = isset($data['role_id']) ? (int)$json['role_id'] : null; // Ensure it's an integer
-        // Basic validation
-        // if (empty($name) || empty($email) || empty($password) || empty($roleId)) {
-        //     http_response_code(400); // Bad Request
-        //     echo json_encode(['success' => false, 'message' => 'Name, email, password, and role_id are required.']);
-        //     exit;
-        // }
-        // if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        //     http_response_code(400);
-        //     echo json_encode(['success' => false, 'message' => 'Invalid email format.']);
-        //     exit;
-        // }
-        // Validate the provided role_id
-        if (!$this->isValidRoleId($json['role_id'])) {
-            http_response_code(400); // Bad Request
-            echo json_encode(['success' => false, 'message' => 'Invalid role_id provided.']);
-            exit;
-        }
 
-        try {
-            // Check if email already exists in contacts
-            $stmt = $this->pdo->prepare("SELECT * FROM contacts WHERE Email = :email");
-            $stmt->bindParam(':email', $json['email'], PDO::PARAM_STR);
-            $stmt->execute();
+      // Validate the provided role_id
+      if (!$this->isValidRoleId($json['RoleID'])) {
+          http_response_code(400); // Bad Request
+          echo json_encode(['success' => false, 'message' => 'Invalid role_id provided.']);
+          exit;
+      }
+  
+      try {
+          // Check if email already exists in contacts
+          $stmt = $this->pdo->prepare("SELECT * FROM contacts WHERE Email = :email");
+          $stmt->bindParam(':email', $json['Email'], PDO::PARAM_STR);
+          $stmt->execute();
+  
+          if ($stmt->fetch(PDO::FETCH_ASSOC)) {
+              http_response_code(409); // Conflict
+              echo json_encode(['success' => false, 'message' => 'Email already exists.']);
+              exit;
+          }
+          
+          $this->pdo->beginTransaction();
+          
+          // Insert into contacts
+          $stmt = $this->pdo->prepare("INSERT INTO `contacts`(`Phone`, `Email`) VALUES(?, ?)");
+          $stmt->execute([$json["Phone"], $json["Email"]]);
+          $contactId = $this->pdo->lastInsertId();
+          // Extract the first 2 letters of the first and last name
+          $fname = strtolower(substr($json['Fname'], 0, 2));
+          $lname = strtolower(substr($json['Lname'], 0, 2));
 
-            if ($stmt->fetch(PDO::FETCH_ASSOC)) {
-                http_response_code(409); // Conflict
-                echo json_encode(['success' => false, 'message' => 'Email already exists.']);
-                exit;
-            }
-            
-            $this->pdo->beginTransaction();
-            // Insert into contacts
-            $stmt = $this->pdo->prepare("INSERT INTO `contacts`(`Phone`, `Email`) VALUES(?, ?)");
-            $stmt->execute([$json["phone"], $json["email"]]);
-            $contactId = $this->pdo->lastInsertId();
-            // Hash the password. PASSWORD_DEFAULT ang gi gamit para sa php rata mag hash
-            $passwordHash = password_hash($json['password'], PASSWORD_DEFAULT);
-            // Insert into users with the provided role_id
-            $stmt = $this->pdo->prepare("INSERT INTO users (Name, PasswordHash, RoleID, ContactID) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$json['name'], $passwordHash, (int)$json['role_id'], $contactId]);
-            $userId = $this->pdo->lastInsertId();
-            // Commit transaction
-            $this->pdo->commit();
-            // Respond with success
-            unset($stmt);
-            unset($this->pdo);
-
-            http_response_code(201); // Created
-            echo json_encode(['success' => true, 'message' => 'User registered successfully.', 'user_id' => $userId]);
-        } catch (\PDOException $e) {
-            // Rollback transaction on error
-            $this->pdo->rollBack();
-            http_response_code(500); // Internal Server Error
-            echo json_encode(['success' => false, 'message' => 'Registration failed.', 'error' => $e->getMessage()]);
-        }
-    }
+          // ? Combine the first 2 and first 2 letters of the first and last name
+          $passwordFormat = $fname . $lname;
+          // Hash the modified name. PASSWORD_DEFAULT ang gi gamit para sa php rata mag hash
+          $passwordHash = password_hash($passwordFormat, PASSWORD_DEFAULT);
+  
+          // Insert into users with the provided role_id
+          $stmt = $this->pdo->prepare("INSERT INTO `users`(
+              Fname,
+              Mname,
+              Lname,
+              PasswordHash,
+              RoleID,
+              GenderID,
+              ContactID
+          )
+          VALUES(
+              :Fname,
+              :Mname,
+              :Lname,
+              :PasswordHash,
+              :RoleID,
+              :GenderID,
+              :ContactID
+          )");
+          $stmt->bindParam(':Fname', $json['Fname'], PDO::PARAM_STR);
+          $stmt->bindParam(':Mname', $json['Mname'], PDO::PARAM_STR);
+          $stmt->bindParam(':Lname', $json['Lname'], PDO::PARAM_STR);
+          $stmt->bindParam(':PasswordHash', $passwordHash, PDO::PARAM_STR);
+          $stmt->bindParam(':RoleID', $json['RoleID'], PDO::PARAM_INT);
+          $stmt->bindParam(':GenderID', $json['GenderID'], PDO::PARAM_INT);
+          $stmt->bindParam(':ContactID', $contactId, PDO::PARAM_INT);
+          $stmt->execute();
+          $userId = $this->pdo->lastInsertId();
+  
+          // Commit transaction
+          $this->pdo->commit();
+  
+          // Respond with success
+          unset($stmt);
+          unset($this->pdo);
+  
+          http_response_code(201); // Created
+          echo json_encode(['success' => true, 'message' => 'User registered successfully.', 'user_id' => $userId]);
+      } catch (\PDOException $e) {
+          // Rollback transaction on error
+          $this->pdo->rollBack();
+          http_response_code(500); // Internal Server Error
+          echo json_encode(['success' => false, 'message' => 'Registration failed.', 'error' => $e->getMessage()]);
+      }
+  }
+  
 
     /**
      * Validate if the provided role_id exists in the user_roles table.
@@ -120,11 +139,16 @@ class User {
         // try {
             // Retrieve user information by joining users and contacts tables
             $stmt = $this->pdo->prepare("
-              SELECT users.UserID, users.Name, users.PasswordHash, user_roles.RoleName, user_roles.RoleName
+              SELECT users.UserID, 
+              CONCAT(users.Fname, ' ', 
+                  COALESCE(CONCAT(SUBSTRING(users.Mname, 1, 1), '. '), ''), 
+                  users.Lname) AS Name, 
+                users.PasswordHash, 
+                user_roles.RoleName
               FROM users
               JOIN contacts ON users.ContactID = contacts.ContactID
               JOIN user_roles ON users.RoleID = user_roles.RoleID
-              WHERE contacts.Email = :email
+              WHERE contacts.Email = :email;
             ");
             $stmt->bindParam(':email', $json['email'], PDO::PARAM_STR);
             $stmt->execute();
@@ -417,7 +441,51 @@ public function getUserDetails($json) {
  * @param array $json Associative array containing 'admin_user_id' to verify admin privileges.
  * @return void Outputs JSON response and exits.
  */
-public function listUsers($json) {
+// public function listUsers($json) {
+//     if (empty($json['admin_user_id'])) {
+//         http_response_code(400);
+//         echo json_encode(['success' => false, 'message' => 'Admin User ID is required.']);
+//         exit;
+//     }
+
+//     $adminUserId = (int)$json['admin_user_id'];
+
+//     try {
+//         // Verify if the requester is an admin
+//         $stmt = $this->pdo->prepare("
+//             SELECT user_roles.RoleName
+//             FROM users
+//             JOIN user_roles ON users.RoleID = user_roles.RoleID
+//             WHERE users.UserID = :admin_user_id
+//         ");
+//         $stmt->bindParam(':admin_user_id', $adminUserId, PDO::PARAM_INT);
+//         $stmt->execute();
+//         $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+
+//         if (!$admin || strtolower($admin['RoleName']) !== 'admin') {
+//             http_response_code(403); // Forbidden
+//             echo json_encode(['success' => false, 'message' => 'Access denied. Admin privileges required.']);
+//             exit;
+//         }
+
+//         // Fetch all users
+//         $stmt = $this->pdo->prepare("
+//             SELECT users.UserID, users.Name, contacts.Email, contacts.Phone, user_roles.RoleName
+//             FROM users
+//             JOIN contacts ON users.ContactID = contacts.ContactID
+//             JOIN user_roles ON users.RoleID = user_roles.RoleID
+//         ");
+//         $stmt->execute();
+//         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+//         http_response_code(200); // OK
+//         echo json_encode(['success' => true, 'users' => $users]);
+//     } catch (\PDOException $e) {
+//         http_response_code(500); // Internal Server Error
+//         echo json_encode(['success' => false, 'message' => 'Failed to retrieve users.', 'error' => $e->getMessage()]);
+//     }
+// }
+  public function listUsers($json) {
     if (empty($json['admin_user_id'])) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Admin User ID is required.']);
@@ -427,7 +495,7 @@ public function listUsers($json) {
     $adminUserId = (int)$json['admin_user_id'];
 
     try {
-        // Verify if the requester is an admin
+        // Verify the role of the requester
         $stmt = $this->pdo->prepare("
             SELECT user_roles.RoleName
             FROM users
@@ -436,33 +504,50 @@ public function listUsers($json) {
         ");
         $stmt->bindParam(':admin_user_id', $adminUserId, PDO::PARAM_INT);
         $stmt->execute();
-        $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+        $requesterRole = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$admin || strtolower($admin['RoleName']) !== 'admin') {
+        if (!$requesterRole || !in_array(strtolower($requesterRole['RoleName']), ['admin', 'librarian'])) {
             http_response_code(403); // Forbidden
-            echo json_encode(['success' => false, 'message' => 'Access denied. Admin privileges required.']);
+            echo json_encode(['success' => false, 'message' => 'Access denied. Admin or Librarian privileges required.']);
             exit;
         }
 
         // Fetch all users
         $stmt = $this->pdo->prepare("
-            SELECT users.UserID, users.Name, contacts.Email, contacts.Phone, user_roles.RoleName
-            FROM users
+            SELECT
+                users.UserID,
+                users.Fname,
+                users.Mname,
+                users.Lname,
+                contacts.Email,
+                contacts.Phone,
+                user_roles.RoleName,
+                genders.GenderName
+            FROM
+                users
             JOIN contacts ON users.ContactID = contacts.ContactID
             JOIN user_roles ON users.RoleID = user_roles.RoleID
+            JOIN genders ON users.GenderID = genders.GenderID
         ");
         $stmt->execute();
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Filter out admins if the requester is a librarian
+        if (strtolower($requesterRole['RoleName']) === 'librarian') {
+            $users = array_filter($users, function ($user) {
+                return strtolower($user['RoleName']) !== 'admin';
+            });
+        }
+
         http_response_code(200); // OK
-        echo json_encode(['success' => true, 'users' => $users]);
+        echo json_encode(['success' => true, 'users' => array_values($users)]);
     } catch (\PDOException $e) {
         http_response_code(500); // Internal Server Error
         echo json_encode(['success' => false, 'message' => 'Failed to retrieve users.', 'error' => $e->getMessage()]);
     }
+  }
 }
 
-}
 
 if ($_SERVER['REQUEST_METHOD'] == 'GET') {
   $operation = $_GET['operation'];
