@@ -191,95 +191,55 @@ class User {
  * @return void Outputs JSON response and exits.
  */
 public function updateProfile($json) {
-    if (empty($json['user_id'])) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'User ID is required.']);
-        exit;
-    }
+  if (empty($json['UserID'])) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'message' => 'User ID is required.']);
+      exit;
+  }
 
-    $userId = (int)$json['user_id'];
-    $allowedFields = ['name', 'email', 'phone'];
-    $fieldsToUpdate = [];
-    $params = [];
+  if (isset($json['Email']) && !filter_var($json['Email'], FILTER_VALIDATE_EMAIL)) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'message' => 'Invalid email format.']);
+      exit;
+  }
 
-    foreach ($allowedFields as $field) {
-        if (isset($json[$field])) {
-            $fieldsToUpdate[] = ucfirst($field) . " = :" . $field;
-            $params[$field] = trim($json[$field]);
-        }
-    }
+  try {
+      $this->pdo->beginTransaction();
 
-    if (empty($fieldsToUpdate)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'No valid fields provided for update.']);
-        exit;
-    }
+      // Check for unique email if provided
+      if (isset($json['Email'])) {
+          $stmt = $this->pdo->prepare("SELECT * FROM contacts WHERE Email = :Email AND ContactID != (SELECT ContactID FROM users WHERE UserID = :UserID)");
+          $stmt->execute([':Email' => $json['Email'], ':UserID' => $json['UserID']]);
+          if ($stmt->fetch(PDO::FETCH_ASSOC)) {
+              http_response_code(409); // Conflict
+              echo json_encode(['success' => false, 'message' => 'Email already exists.']);
+              exit;
+          }
+      }
 
-    // If email is being updated, validate it
-    if (isset($json['email']) && !filter_var($json['email'], FILTER_VALIDATE_EMAIL)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Invalid email format.']);
-        exit;
-    }
+      // Update contacts table if Email or Phone is provided
+      if (isset($json['Email']) || isset($json['Phone'])) {
+          $stmt = $this->pdo->prepare("UPDATE contacts SET Email = COALESCE(:Email, Email), Phone = COALESCE(:Phone, Phone) WHERE ContactID = (SELECT ContactID FROM users WHERE UserID = :UserID)");
+          $stmt->execute([':Email' => $json['Email'] ?? null, ':Phone' => $json['Phone'] ?? null, ':UserID' => $json['UserID']]);
+      }
 
-    try {
-        // If email is being updated, check for uniqueness
-        if (isset($json['email'])) {
-            $stmt = $this->pdo->prepare("SELECT * FROM contacts WHERE Email = :email AND ContactID != (SELECT ContactID FROM users WHERE UserID = :user_id)");
-            $stmt->bindParam(':email', $json['email'], PDO::PARAM_STR);
-            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->execute();
+      // Update users table
+      $stmt = $this->pdo->prepare("UPDATE users SET Fname = :Fname, Mname = :Mname, Lname = :Lname, RoleID = :RoleID, GenderID = :GenderID WHERE UserID = :UserID");
+      $stmt->execute([
+          ':Fname' => $json['Fname'], ':Mname' => $json['Mname'], ':Lname' => $json['Lname'],
+          ':RoleID' => $json['RoleID'], ':GenderID' => $json['GenderID'], ':UserID' => $json['UserID']
+      ]);
 
-            if ($stmt->fetch(PDO::FETCH_ASSOC)) {
-                http_response_code(409); // Conflict
-                echo json_encode(['success' => false, 'message' => 'Email already exists.']);
-                exit;
-            }
-        }
-
-        $this->pdo->beginTransaction();
-
-        // Update contacts table if email or phone is being updated
-        if (isset($json['email']) || isset($json['phone'])) {
-            $contactFields = [];
-            if (isset($json['email'])) {
-                $contactFields[] = "Email = :email";
-            }
-            if (isset($json['phone'])) {
-                $contactFields[] = "Phone = :phone";
-            }
-
-            $contactQuery = "UPDATE contacts SET " . implode(", ", $contactFields) . " WHERE ContactID = (SELECT ContactID FROM users WHERE UserID = :user_id)";
-            $stmt = $this->pdo->prepare($contactQuery);
-
-            if (isset($json['email'])) {
-                $stmt->bindParam(':email', $json['email'], PDO::PARAM_STR);
-            }
-            if (isset($json['phone'])) {
-                $stmt->bindParam(':phone', $json['phone'], PDO::PARAM_STR);
-            }
-            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->execute();
-        }
-
-        // Update users table if name is being updated
-        if (isset($json['name'])) {
-            $stmt = $this->pdo->prepare("UPDATE users SET Name = :name WHERE UserID = :user_id");
-            $stmt->bindParam(':name', $json['name'], PDO::PARAM_STR);
-            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->execute();
-        }
-
-        $this->pdo->commit();
-
-        http_response_code(200); // OK
-        echo json_encode(['success' => true, 'message' => 'Profile updated successfully.']);
-    } catch (\PDOException $e) {
-        $this->pdo->rollBack();
-        http_response_code(500); // Internal Server Error
-        echo json_encode(['success' => false, 'message' => 'Profile update failed.', 'error' => $e->getMessage()]);
-    }
+      $this->pdo->commit();
+      http_response_code(200);
+      echo json_encode(['success' => true, 'message' => 'Profile updated successfully.']);
+  } catch (\PDOException $e) {
+      $this->pdo->rollBack();
+      http_response_code(500);
+      echo json_encode(['success' => false, 'message' => 'Profile update failed.', 'error' => $e->getMessage()]);
+  }
 }
+
 /**
  * Change user password.
  *
@@ -340,20 +300,19 @@ public function changePassword($json) {
  * @return void Outputs JSON response and exits.
  */
 public function deleteUser($json) {
-    if (empty($json['user_id'])) {
+    if (empty($json['UserID'])) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'User ID is required.']);
         exit;
     }
 
-    $userId = (int)$json['user_id'];
 
     try {
         $this->pdo->beginTransaction();
 
         // Get ContactID before deleting user
-        $stmt = $this->pdo->prepare("SELECT ContactID FROM users WHERE UserID = :user_id");
-        $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+        $stmt = $this->pdo->prepare("SELECT ContactID FROM users WHERE UserID = :UserID");
+        $stmt->bindParam(':UserID', $json['UserID'], PDO::PARAM_INT);
         $stmt->execute();
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -367,8 +326,8 @@ public function deleteUser($json) {
         $contactId = $user['ContactID'];
 
         // Delete user
-        $stmt = $this->pdo->prepare("DELETE FROM users WHERE UserID = :user_id");
-        $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+        $stmt = $this->pdo->prepare("DELETE FROM users WHERE UserID = :UserID");
+        $stmt->bindParam(':UserID', $json['UserID'], PDO::PARAM_INT);
         $stmt->execute();
 
         // Optionally delete contact if no other users are linked
@@ -441,50 +400,8 @@ public function getUserDetails($json) {
  * @param array $json Associative array containing 'admin_user_id' to verify admin privileges.
  * @return void Outputs JSON response and exits.
  */
-// public function listUsers($json) {
-//     if (empty($json['admin_user_id'])) {
-//         http_response_code(400);
-//         echo json_encode(['success' => false, 'message' => 'Admin User ID is required.']);
-//         exit;
-//     }
 
-//     $adminUserId = (int)$json['admin_user_id'];
 
-//     try {
-//         // Verify if the requester is an admin
-//         $stmt = $this->pdo->prepare("
-//             SELECT user_roles.RoleName
-//             FROM users
-//             JOIN user_roles ON users.RoleID = user_roles.RoleID
-//             WHERE users.UserID = :admin_user_id
-//         ");
-//         $stmt->bindParam(':admin_user_id', $adminUserId, PDO::PARAM_INT);
-//         $stmt->execute();
-//         $admin = $stmt->fetch(PDO::FETCH_ASSOC);
-
-//         if (!$admin || strtolower($admin['RoleName']) !== 'admin') {
-//             http_response_code(403); // Forbidden
-//             echo json_encode(['success' => false, 'message' => 'Access denied. Admin privileges required.']);
-//             exit;
-//         }
-
-//         // Fetch all users
-//         $stmt = $this->pdo->prepare("
-//             SELECT users.UserID, users.Name, contacts.Email, contacts.Phone, user_roles.RoleName
-//             FROM users
-//             JOIN contacts ON users.ContactID = contacts.ContactID
-//             JOIN user_roles ON users.RoleID = user_roles.RoleID
-//         ");
-//         $stmt->execute();
-//         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-//         http_response_code(200); // OK
-//         echo json_encode(['success' => true, 'users' => $users]);
-//     } catch (\PDOException $e) {
-//         http_response_code(500); // Internal Server Error
-//         echo json_encode(['success' => false, 'message' => 'Failed to retrieve users.', 'error' => $e->getMessage()]);
-//     }
-// }
   public function listUsers($json) {
     if (empty($json['admin_user_id'])) {
         http_response_code(400);
