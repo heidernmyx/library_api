@@ -306,7 +306,6 @@ public function deleteUser($json) {
         exit;
     }
 
-
     try {
         $this->pdo->beginTransaction();
 
@@ -439,7 +438,8 @@ public function getUserDetails($json) {
                 contacts.Email,
                 contacts.Phone,
                 user_roles.RoleName,
-                genders.GenderName
+                genders.GenderName,
+                users.Status
             FROM
                 users
             JOIN contacts ON users.ContactID = contacts.ContactID
@@ -462,6 +462,34 @@ public function getUserDetails($json) {
         http_response_code(500); // Internal Server Error
         echo json_encode(['success' => false, 'message' => 'Failed to retrieve users.', 'error' => $e->getMessage()]);
     }
+  }
+
+  public function archiveUser ($json) {
+    
+    $sql = "UPDATE users set Status = 0 WHERE UserID = :UserID";
+
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->bindParam(':UserID', $json['UserID'], PDO::PARAM_INT);
+    $stmt->execute();
+    $result = $stmt->rowCount() > 0 ? 1 : 0;
+
+    unset($stmt);
+    unset($this->pdo);
+    echo json_encode($result);
+  }
+
+  public function restoreUser ($json) {
+    
+    $sql = "UPDATE users set Status = 1 WHERE UserID = :UserID";
+
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->bindParam(':UserID', $json['UserID'], PDO::PARAM_INT);
+    $stmt->execute();
+    $result = $stmt->rowCount() > 0 ? 1 : 0;
+
+    unset($stmt);
+    unset($this->pdo);
+    echo json_encode($result);
   }
 }
 
@@ -500,6 +528,12 @@ switch ($operation) {
         break;
     case 'list_users':
         $user->listUsers($json);
+        break;
+    case 'archive_user':
+        $user->archiveUser($json);
+        break;
+    case 'restore_user':
+        $user->restoreUser($json);
         break;
     default:
         http_response_code(400); // Bad Request
