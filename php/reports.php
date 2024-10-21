@@ -60,7 +60,7 @@ class Reports {
                 SELECT 
                     bb.BorrowID,
                     b.Title,
-                    u.Name AS UserName,
+                    u.Fname AS UserName,
                     bb.BorrowDate,
                     bb.DueDate,
                     DATEDIFF(CURDATE(), bb.DueDate) AS DaysOverdue

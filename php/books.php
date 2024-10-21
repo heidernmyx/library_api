@@ -384,7 +384,7 @@ private function getOrCreateAuthor($authorName) {
         $stmt = $this->pdo->prepare("SELECT Name FROM users WHERE UserId = ?");
         $stmt->execute([$userId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $user ? $user['Name'] : 'Unknown User';
+        return $user ? $user['Fname'] : 'Unknown User';
     }
     /**
      * **Return a Book**
@@ -518,7 +518,7 @@ private function getOrCreateAuthor($authorName) {
             $stmt = $this->pdo->prepare("
                 SELECT
                     bb.BorrowID,
-                    u.Name AS UserName,
+                    u.Fname AS UserName,
                     b.BookID,
                     b.Title,
                     a.AuthorName,
@@ -621,7 +621,7 @@ private function getOrCreateAuthor($authorName) {
             $sql = "
                 SELECT
                     bb.BorrowID,
-                    u.Name,
+                    u.Fname,
                     b.BookID,
                     b.Title,
                     a.AuthorName,
@@ -683,7 +683,7 @@ private function getOrCreateAuthor($authorName) {
             $sql = "
                 SELECT 
                     r.ReservationID,
-                    u.Name,
+                    u.Fname,
                     b.BookID,
                     b.Title,
                     a.AuthorName,
