@@ -134,7 +134,7 @@ class Reports {
                     bb.BorrowID,
                     b.Title,
                     a.AuthorName,
-                    u.Name AS UserName,
+                    u.Fname AS UserName,
                     bb.BorrowDate,
                     bb.DueDate
                 FROM 
@@ -170,7 +170,7 @@ class Reports {
             $stmt = $this->pdo->prepare("
                 SELECT 
                     u.UserID,
-                    u.Name AS UserName,
+                    u.Fname AS UserName,
                     COUNT(bb.BorrowID) AS LateReturns
                 FROM 
                     borrowed_books bb
