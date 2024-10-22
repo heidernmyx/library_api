@@ -66,7 +66,8 @@ class User {
               :PasswordHash,
               :RoleID,
               :GenderID,
-              :ContactID
+              :ContactID,
+              1
           )");
           $stmt->bindParam(':Fname', $json['Fname'], PDO::PARAM_STR);
           $stmt->bindParam(':Mname', $json['Mname'], PDO::PARAM_STR);
