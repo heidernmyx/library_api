@@ -304,58 +304,58 @@ public function changePassword($json) {
  * @param array $json Associative array containing 'user_id'.
  * @return void Outputs JSON response and exits.
  */
-public function deleteUser($json) {
-    if (empty($json['UserID'])) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'User ID is required.']);
-        exit;
-    }
+// public function deleteUser($json) {
+//     if (empty($json['UserID'])) {
+//         http_response_code(400);
+//         echo json_encode(['success' => false, 'message' => 'User ID is required.']);
+//         exit;
+//     }
 
-    try {
-        $this->pdo->beginTransaction();
+//     try {
+//         $this->pdo->beginTransaction();
 
-        // Get ContactID before deleting user
-        $stmt = $this->pdo->prepare("SELECT ContactID FROM users WHERE UserID = :UserID");
-        $stmt->bindParam(':UserID', $json['UserID'], PDO::PARAM_INT);
-        $stmt->execute();
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+//         // Get ContactID before deleting user
+//         $stmt = $this->pdo->prepare("SELECT ContactID FROM users WHERE UserID = :UserID");
+//         $stmt->bindParam(':UserID', $json['UserID'], PDO::PARAM_INT);
+//         $stmt->execute();
+//         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$user) {
-            $this->pdo->rollBack();
-            http_response_code(404); // Not Found
-            echo json_encode(['success' => false, 'message' => 'User not found.']);
-            exit;
-        }
+//         if (!$user) {
+//             $this->pdo->rollBack();
+//             http_response_code(404); // Not Found
+//             echo json_encode(['success' => false, 'message' => 'User not found.']);
+//             exit;
+//         }
 
-        $contactId = $user['ContactID'];
+//         $contactId = $user['ContactID'];
 
-        // Delete user
-        $stmt = $this->pdo->prepare("DELETE FROM users WHERE UserID = :UserID");
-        $stmt->bindParam(':UserID', $json['UserID'], PDO::PARAM_INT);
-        $stmt->execute();
+//         // Delete user
+//         $stmt = $this->pdo->prepare("DELETE FROM users WHERE UserID = :UserID");
+//         $stmt->bindParam(':UserID', $json['UserID'], PDO::PARAM_INT);
+//         $stmt->execute();
 
-        // Optionally delete contact if no other users are linked
-        $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM users WHERE ContactID = :contact_id");
-        $stmt->bindParam(':contact_id', $contactId, PDO::PARAM_INT);
-        $stmt->execute();
-        $count = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+//         // Optionally delete contact if no other users are linked
+//         $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM users WHERE ContactID = :contact_id");
+//         $stmt->bindParam(':contact_id', $contactId, PDO::PARAM_INT);
+//         $stmt->execute();
+//         $count = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
-        if ($count == 0) {
-            $stmt = $this->pdo->prepare("DELETE FROM contacts WHERE ContactID = :contact_id");
-            $stmt->bindParam(':contact_id', $contactId, PDO::PARAM_INT);
-            $stmt->execute();
-        }
+//         if ($count == 0) {
+//             $stmt = $this->pdo->prepare("DELETE FROM contacts WHERE ContactID = :contact_id");
+//             $stmt->bindParam(':contact_id', $contactId, PDO::PARAM_INT);
+//             $stmt->execute();
+//         }
 
-        $this->pdo->commit();
+//         $this->pdo->commit();
 
-        http_response_code(200); // OK
-        echo json_encode(['success' => true, 'message' => 'User deleted successfully.']);
-    } catch (\PDOException $e) {
-        $this->pdo->rollBack();
-        http_response_code(500); // Internal Server Error
-        echo json_encode(['success' => false, 'message' => 'User deletion failed.', 'error' => $e->getMessage()]);
-    }
-}
+//         http_response_code(200); // OK
+//         echo json_encode(['success' => true, 'message' => 'User deleted successfully.']);
+//     } catch (\PDOException $e) {
+//         $this->pdo->rollBack();
+//         http_response_code(500); // Internal Server Error
+//         echo json_encode(['success' => false, 'message' => 'User deletion failed.', 'error' => $e->getMessage()]);
+//     }
+// }
 /**
  * Get user details.
  *
@@ -455,9 +455,9 @@ public function getUserDetails($json) {
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Filter out admins if the requester is a librarian
-        if (strtolower($requesterRole['RoleName']) === 'Librarian') {
+        if (strtolower($requesterRole['RoleName']) == 'librarian') {
             $users = array_filter($users, function ($user) {
-                return strtolower($user['RoleName']) !== 'Admin';
+                return strtolower($user['RoleName']) != 'admin';
             });
         }
 
@@ -525,9 +525,9 @@ switch ($operation) {
     case 'change_password':
         $user->changePassword($json);
         break;
-    case 'delete_user':
-        $user->deleteUser($json);
-        break;
+    // case 'delete_user':
+    //     $user->deleteUser($json);
+    //     break;
     case 'get_user_details':
         $user->getUserDetails($json);
         break;

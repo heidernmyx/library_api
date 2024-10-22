@@ -3,7 +3,7 @@
 $host = 'localhost';
 $db   = 'fritz_library';
 $user = 'root'; 
-$pass = 'password'; 
+$pass = ''; 
 $charset = 'utf8mb4';
 
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
