@@ -347,7 +347,7 @@ private function getOrCreateAuthor($authorName) {
                     $message = "You have successfully borrowed '{$bookTitle}'. Due date is $dueDate.";
                     $notificationTypeId = 2; // 2 = 'Book Borrowed'
                     $userName = $this->getUsersName($userId);
-                    $this->notification->addNotification($userId, $message, $notificationTypeId);
+                    $this->notification->addNotification($userName, $message, $notificationTypeId);
                     $this->notification->addNotificationForLibrarians("$userName has borrowed '{$bookTitle}'.", 2); // 2 = 'Book Borrowed'
                     $this->pdo->commit();
 
@@ -381,7 +381,7 @@ private function getOrCreateAuthor($authorName) {
         return $book ? $book['Title'] : 'Unknown Title';
     }
     private function getUsersName($userId){
-        $stmt = $this->pdo->prepare("SELECT Name FROM users WHERE UserId = ?");
+        $stmt = $this->pdo->prepare("SELECT Fname FROM users WHERE UserID = ?");
         $stmt->execute([$userId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         return $user ? $user['Fname'] : 'Unknown User';

@@ -422,7 +422,7 @@ public function getUserDetails($json) {
         $stmt->execute();
         $requesterRole = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$requesterRole || !in_array(strtolower($requesterRole['RoleName']), ['admin', 'librarian'])) {
+        if (!$requesterRole || !in_array(strtolower($requesterRole['RoleName']), ['Admin', 'Librarian'])) {
             http_response_code(403); // Forbidden
             echo json_encode(['success' => false, 'message' => 'Access denied. Admin or Librarian privileges required.']);
             exit;
@@ -450,9 +450,9 @@ public function getUserDetails($json) {
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Filter out admins if the requester is a librarian
-        if (strtolower($requesterRole['RoleName']) === 'librarian') {
+        if (strtolower($requesterRole['RoleName']) === 'Librarian') {
             $users = array_filter($users, function ($user) {
-                return strtolower($user['RoleName']) !== 'admin';
+                return strtolower($user['RoleName']) !== 'Admin';
             });
         }
 
