@@ -5,19 +5,18 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST');
 header('Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With');
 
-// Include the database connection and Notification class
-include '../php/connection/connection.php'; // Ensure the path is correct
-require_once 'notification.php'; // Include the Notification class
-// require_once 'bookpublisher.php';
+include '../php/connection/connection.php'; 
+require_once 'notification.php'; 
+require_once 'logs.php';
 class Book {
     private $pdo;
     private $notification;
-    // private $bookpublisher;
+    private $logs;
 
     public function __construct($pdo) {
         $this->pdo = $pdo;
         $this->notification = new Notification($pdo); // Initialize Notification class
-        // $this->bookpublisher = new BookPublisher($pdo);
+        $this->logs = new Logs($pdo);
     }
 
     /**
@@ -63,9 +62,23 @@ class Book {
         if (isset($json['copies']) && is_numeric($json['copies'])) {
             $this->addBookCopies($bookId, intval($json['copies']));
         }
+        // // Ensure user_id exists and is valid
+        // if (!isset($json['user_id']) || !is_numeric($json['user_id'])) {
+        //     http_response_code(400); // Bad Request
+        //     echo json_encode(['success' => false, 'message' => 'Invalid user ID.']);
+        //     exit;
+        // }
+
+        $userId = intval($json['user_id']); // Extract the user_id and convert to integer
+
+        
+    
 
         $this->pdo->commit();
-
+        //**Add ta og logs */
+        $userName = $this->getUsersName($json['user_id']);
+        $context = "$userName Added a new book '{$json['title']}' to the library.";
+        $this->logs->addLogs($json['user_id'], $context);
         // **Add notification for librarians about new book**
         $message = "A new book '{$json['title']}' has been added to the library.";
         $notificationTypeId = 9; // 9 = 'New Book Added'
@@ -279,7 +292,9 @@ private function getOrCreateAuthor($authorName) {
             $message = "A new reservation has been made for '{$bookTitle}' by $userName. Please review the reservation";
             $notificationTypeId = 1; // 1 = 'Reservation Made'
             $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
-
+            //**add ta og logs */
+            $context = "$userName has made a reservation for '{$bookTitle}'.";
+            $this->logs->addLogs($userId, $context);
             $this->pdo->commit();
             echo json_encode(['success' => true, 'message' => 'Book reserved successfully.']);
         } catch (\PDOException $e) {
@@ -349,6 +364,10 @@ private function getOrCreateAuthor($authorName) {
                     $userName = $this->getUsersName($userId);
                     $this->notification->addNotification($userName, $message, $notificationTypeId);
                     $this->notification->addNotificationForLibrarians("$userName has borrowed '{$bookTitle}'.", 2); // 2 = 'Book Borrowed'
+                   //*add logs */
+                     $context = "$userName has borrowed '{$bookTitle}'.";
+                    $this->logs->addLogs($userId, $context);
+                   
                     $this->pdo->commit();
 
                     echo json_encode(['success' => true, 'message' => 'Book borrowed successfully.']);
@@ -433,7 +452,9 @@ private function getOrCreateAuthor($authorName) {
                 $message = " $userName has returned '{$bookTitle}'. Please confirm the return.";
                 $notificationTypeId = 3; // 3 = 'Book Returned'
                 $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
-
+                //**add loogerrss */
+                $context = "$userName has returned '{$bookTitle}'.";
+                $this->logs->addLogs($userId, $context);
                 // **Notify user if penalty fees are applied**
                 if ($penaltyFees > 0) {
                     $message = "You have been charged a penalty fee of \$$penaltyFees for the late return of '{$bookTitle}'.";
@@ -822,13 +843,16 @@ public function updateBooks($json) {
         if (isset($json['copies']) && is_numeric($json['copies'])) {
             $this->updateBookCopies($json['book_id'], intval($json['copies']));
         }
-
+        $userId = intval($json['user_id']);
         // Commit the transaction
+        $userName = $this->getUsersName($userId);
+        $this->logs->addLogs($userId, "Book '{$json['title']}' has been updated by $userName.");
         $this->pdo->commit();
 
+
         // // Notify librarians about the book update
-        // $message = "The book '{$json['title']}' has been updated.";
-        // $this->notification->addNotificationForLibrarians($message, 11); // 11 = 'Book Updated'
+        $message = "The book '{$json['title']}' has been updated.";
+        $this->notification->addNotificationForLibrarians($message, 11); // 11 = 'Book Updated'
 
         echo json_encode(['success' => true]);
     } catch (\PDOException $e) {
@@ -909,61 +933,68 @@ private function validateUpdateInput($json) {
      * @param int $statusId
      */
     public function updateReservationStatus($reservationId, $statusId) {
-        try {
-            $this->pdo->beginTransaction();
+    $json = json_decode($_POST['json'], true); 
+    try {
+        $this->pdo->beginTransaction();
 
-            // Fetch reservation details
+        // Fetch reservation details
+        $stmt = $this->pdo->prepare("
+            SELECT 
+            r.UserID, 
+            b.Title 
+            FROM reservations r
+            JOIN books b ON r.BookID = b.BookID
+            WHERE r.ReservationID = ?
+        ");
+        $stmt->execute([$reservationId]);
+        $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($reservation) {
+            // Update reservation status
             $stmt = $this->pdo->prepare("
-                SELECT r.UserID, b.Title 
-                FROM reservations r
-                JOIN books b ON r.BookID = b.BookID
-                WHERE r.ReservationID = ?
+                UPDATE reservations 
+                SET StatusID = ? 
+                WHERE ReservationID = ?
             ");
-            $stmt->execute([$reservationId]);
-            $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
+            $stmt->execute([$statusId, $reservationId]);
 
-            if ($reservation) {
-                // Update reservation status
-                $stmt = $this->pdo->prepare("
-                    UPDATE reservations 
-                    SET StatusID = ? 
-                    WHERE ReservationID = ?
-                ");
-                $stmt->execute([$statusId, $reservationId]);
-
-                switch ($statusId ) {
-                    
-                    case 2: 
-                        $message = "Your reservation for '{$reservation['Title']}' has been fulfilled.";
-                        $notificationTypeId = 6; // 6 = 'Reservation Fulfilled'
-                        $this->notification->addNotification($reservation['UserID'], $message, $notificationTypeId);
-                        break;
-                    case 6:
-                        $message = "Your reservation for '{$reservation['Title']}' has been Approved.";
-                        $notificationTypeId = 1; // 7 = 'Reservation Borrowed'
-                        $this->notification->addNotification($reservation['UserID'], $message, $notificationTypeId);
-                        break;
-                    case 10: 
-                        $message = "Your reservation for '{$reservation['Title']}' has been canceled.";
-                        $notificationTypeId = 10; // 10 = 'Reservation Canceled'
-                        $this->notification->addNotification($reservation['UserID'], $message, $notificationTypeId);
-                        break;
-                    default:
-                        break;
-                }
-
-                $this->pdo->commit();
-                echo json_encode(['success' => true, 'message' => 'Reservation status updated successfully.']);
-            } else {
-                $this->pdo->rollBack();
-                echo json_encode(['success' => false, 'message' => 'Reservation not found.']);
+            switch ($statusId) {
+                case 2: 
+                    $message = "Your reservation for '{$reservation['Title']}' has been fulfilled.";
+                    $notificationTypeId = 6; // 6 = 'Reservation Fulfilled'
+                    $this->notification->addNotification($reservation['UserID'], $message, $notificationTypeId);
+                    break;
+                case 6:
+                    $message = "Your reservation for '{$reservation['Title']}' has been approved.";
+                    $notificationTypeId = 1; // 1 = 'Reservation Approved'
+                    $this->notification->addNotification($reservation['UserID'], $message, $notificationTypeId);
+                    break;
+                case 10: 
+                    $message = "Your reservation for '{$reservation['Title']}' has been canceled.";
+                    $notificationTypeId = 10; // 10 = 'Reservation Canceled'
+                    $this->notification->addNotification($reservation['UserID'], $message, $notificationTypeId);
+                    break;
+                default:
+                    break;
             }
-        } catch (\PDOException $e) {
+
+            $staff_id = intval($json['staff_id']); // Extract staff_id from the JSON
+            $staff = $this->getUsersName($staff_id); 
+            $this->logs->addLogs($staff_id, "Reservation status for '{$reservation['Title']}' has been updated by $staff.");
+
+            $this->pdo->commit();
+            echo json_encode(['success' => true, 'message' => 'Reservation status updated successfully.']);
+        } else {
             $this->pdo->rollBack();
-            http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Failed to update reservation status.', 'error' => $e->getMessage()]);
+            echo json_encode(['success' => false, 'message' => 'Reservation not found.']);
         }
+    } catch (\PDOException $e) {
+        $this->pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Failed to update reservation status.', 'error' => $e->getMessage()]);
     }
+}
+
 
     /**
      * **Fetch Notifications**

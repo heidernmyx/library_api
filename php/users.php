@@ -144,7 +144,8 @@ class User {
                   COALESCE(CONCAT(SUBSTRING(users.Mname, 1, 1), '. '), ''), 
                   users.Lname) AS Name, 
                 users.PasswordHash, 
-                user_roles.RoleName
+                user_roles.RoleName,
+                users.Status
               FROM users
               JOIN contacts ON users.ContactID = contacts.ContactID
               JOIN user_roles ON users.RoleID = user_roles.RoleID
@@ -169,7 +170,8 @@ class User {
             unset($pdo);
             unset($stmt);
             // Return the user data (excluding sensitive information... password)
-            echo json_encode([
+            if ($user['Status'] != 0) {
+                echo json_encode([
               // 'success' => true,
               // 'message' => 'Login successful.',
               'user' => [
@@ -179,6 +181,9 @@ class User {
                 'email' => $json['email']
               ]
             ]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Invalid email or password.']);
+            }
         // } catch (\PDOException $e) {
             // http_response_code(500); // Internal Server Error
             // echo json_encod0e(['success' => false, 'message' => 'Login failed.', 'error' => $e->getMessage()]);
@@ -422,7 +427,7 @@ public function getUserDetails($json) {
         $stmt->execute();
         $requesterRole = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$requesterRole || !in_array(strtolower($requesterRole['RoleName']), ['Admin', 'Librarian'])) {
+        if (!$requesterRole || !in_array(strtolower($requesterRole['RoleName']), ['admin', 'librarian'])) {
             http_response_code(403); // Forbidden
             echo json_encode(['success' => false, 'message' => 'Access denied. Admin or Librarian privileges required.']);
             exit;
