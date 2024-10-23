@@ -69,7 +69,7 @@ class Book {
         //     exit;
         // }
 
-        $userId = intval($json['user_id']); // Extract the user_id and convert to integer
+        $userId = intval($json['user_id']); 
 
         
     
@@ -79,6 +79,7 @@ class Book {
         $userName = $this->getUsersName($json['user_id']);
         $context = "$userName Added a new book '{$json['title']}' to the library.";
         $this->logs->addLogs($json['user_id'], $context);
+
         // **Add notification for librarians about new book**
         $message = "A new book '{$json['title']}' has been added to the library.";
         $notificationTypeId = 9; // 9 = 'New Book Added'
@@ -843,13 +844,12 @@ public function updateBooks($json) {
         if (isset($json['copies']) && is_numeric($json['copies'])) {
             $this->updateBookCopies($json['book_id'], intval($json['copies']));
         }
-        $userId = intval($json['user_id']);
-        // Commit the transaction
-        $userName = $this->getUsersName($userId);
-        $this->logs->addLogs($userId, "Book '{$json['title']}' has been updated by $userName.");
+       
         $this->pdo->commit();
 
-
+        $userId = intval($json['user_id']);
+        $userName = $this->getUsersName($userId);
+        $this->logs->addLogs($userId, "Book '{$json['title']}' has been updated by $userName.");
         // // Notify librarians about the book update
         $message = "The book '{$json['title']}' has been updated.";
         $this->notification->addNotificationForLibrarians($message, 11); // 11 = 'Book Updated'
@@ -932,7 +932,7 @@ private function validateUpdateInput($json) {
      * @param int $reservationId
      * @param int $statusId
      */
-    public function updateReservationStatus($reservationId, $statusId) {
+    public function updateReservationStatus($reservationId, $statusId, $user_id) {
     $json = json_decode($_POST['json'], true); 
     try {
         $this->pdo->beginTransaction();
@@ -978,10 +978,10 @@ private function validateUpdateInput($json) {
                     break;
             }
 
-            $staff_id = intval($json['staff_id']); // Extract staff_id from the JSON
+            $staff_id = intval($json['user_id']); // Extract staff_id from the JSON
             $staff = $this->getUsersName($staff_id); 
             $this->logs->addLogs($staff_id, "Reservation status for '{$reservation['Title']}' has been updated by $staff.");
-
+            $this->notification->addNotificationForLibrarians("Reservation status for '{$reservation['Title']}' .",19);
             $this->pdo->commit();
             echo json_encode(['success' => true, 'message' => 'Reservation status updated successfully.']);
         } else {
@@ -1144,8 +1144,8 @@ switch ($operation) {
         }
         break;
     case 'updateReservationStatus':
-        if (isset($json['reservation_id']) && isset($json['status_id'])) {
-            $book->updateReservationStatus($json['reservation_id'], $json['status_id']);
+        if (isset($json['reservation_id']) && isset($json['status_id']) && isset($json['user_id'])) {
+            $book->updateReservationStatus($json['reservation_id'], $json['status_id'], $json['user_id']);
         } else {
             http_response_code(400);
             echo json_encode(['success' => false, 'message' => 'Reservation ID and Status ID are required.']);

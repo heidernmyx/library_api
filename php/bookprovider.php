@@ -5,13 +5,25 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST');
 
 include '../php/connection/connection.php';
-
+require_once 'logs.php';
+require_once 'notification.php';
 class BookProvider {
   private $pdo;
+  private $logs;
+  private $notification;
 
   public function __construct($pdo) {
     $this->pdo = $pdo;
+    $this->logs = new Logs($pdo);
+    $this->notification = new Notification($pdo);
   }
+
+   private function getUsersName($userId){
+        $stmt = $this->pdo->prepare("SELECT Fname FROM users WHERE UserID = ?");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $user ? $user['Fname'] : 'Unknown User';
+    }
 
 public function fetchBookProviders() {
     $stmt = $this->pdo->prepare("
@@ -110,9 +122,13 @@ public function fetchBookProviders() {
     $stmt->execute([$json['ProviderName'], $contactId, $addressId]);
     
     // $stmt->execute();
-
+    $userId = intval($json['user_id']);
+    $userName = $this->getUsersName($userId);
     $this->pdo->commit();
     
+    $this->notification->addNotificationForLibrarians("'{$json['ProviderName']}' has been added", 18);
+    $this->logs->addLogs($userId, "$userName Added a Book Provider: '{$json['ProviderName']}'");
+
     unset($stmt); unset($this->pdo);
     http_response_code(201); 
     echo json_encode(['success' => true, 'message' => 'Book Provider added successfully.']);
@@ -227,8 +243,13 @@ public function fetchBookProviders() {
       $stmt->bindParam(':ProviderName', $json['ProviderName'], PDO::PARAM_STR);
       $stmt->bindParam(':ProviderID', $json['ProviderID'], PDO::PARAM_INT);
       $stmt->execute();
+      $userId = intval($json['user_id']);
+      $userName = $this->getUsersName($userId);
 
       $this->pdo->commit();
+      $this->notification->addNotificationForLibrarians("'{$json['ProviderName']}' has been updated", 17);
+      $this->logs->addLogs($userId, "$userName Updated a Book Provider: '{$json['ProviderName']}'");
+
 
       unset($stmt); unset($this->pdo);
       http_response_code(201); 
