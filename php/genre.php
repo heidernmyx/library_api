@@ -34,9 +34,9 @@ class Genre {
     $stmt->execute();
 
     if ($stmt->fetch(PDO::FETCH_ASSOC)) {
-      http_response_code(409); // Conflict
-      echo json_encode(['success' => false, 'message' => 'Genre already exists.']);
-      exit;
+        http_response_code(409); // Conflict
+        echo json_encode(['success' => false, 'message' => 'Genre already exists.']);
+        exit;
     }
 
     // Insert the new genre
@@ -44,15 +44,32 @@ class Genre {
     $stmt = $this->pdo->prepare($sql);
     $stmt->bindParam(':genreName', $json['genreName'], PDO::PARAM_STR);
     $stmt->execute();
-    $result = $stmt->rowCount() > 0 ? 1 : 0;
-    $message = `Genre Added: ${$json['genreName']}`;
+
+    // Check if the row was inserted
+    $result = $stmt->rowCount() > 0;
+
+    // Prepare the message and add a notification for librarians
+    $message = "Genre Added: {$json['genreName']}"; 
     $notificationTypeId = 16;
     $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
-    unset($this->pdo);
-    unset($stmt);
 
-    echo json_encode(['success' => $result == 1, 'message' => $result == 1 ? 'Genre added successfully' : 'Failed to add genre']);
-  }
+    // Prepare the response data
+    if ($result) {
+        // Optionally fetch the last inserted genre if needed
+        $genreId = $this->pdo->lastInsertId();
+        $data = ['GenreID' => $genreId, 'GenreName' => $json['genreName']];
+    } else {
+        $data = null; // If insert failed, no data to return
+    }
+
+    // Send the response
+    $response = ['status' => 'success', 'data' => $data];
+    echo json_encode($response);
+
+    // Clean up the statement
+    unset($stmt);
+}
+
 
   // Update an existing genre
   function updateGenre($json) {
