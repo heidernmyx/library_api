@@ -13,6 +13,96 @@ class Reports {
     public function __construct($pdo) {
         $this->pdo = $pdo;
     }
+    
+/**
+     * **Get Admin Attention List**
+     * Retrieves a comprehensive list of items that require administrative attention,
+     * including overdue books, upcoming due dates, expiring reservations, and users with late fees.
+     *
+     * @return array
+     */
+   public function getAdminAttentionList() {
+    try {
+        // 1. Fetch Overdue Books
+        $stmtOverdue = $this->pdo->prepare("
+            SELECT 
+                bb.BorrowID,
+                u.UserID,
+                u.Fname,
+                b.Title,
+                bb.DueDate,
+                DATEDIFF(CURDATE(), bb.DueDate) AS DaysOverdue
+            FROM 
+                borrowed_books bb
+            JOIN 
+                users u ON bb.UserID = u.UserID
+            JOIN 
+                books b ON bb.BookID = b.BookID
+            WHERE 
+                bb.DueDate < CURDATE() 
+                AND bb.StatusID = 4
+        ");
+        $stmtOverdue->execute();
+        $attentionList['overdueBooks'] = $stmtOverdue->fetchAll(PDO::FETCH_ASSOC);
+
+        // 2. Fetch Books Due Soon (e.g., due in next 3 days)
+        $stmtDueSoon = $this->pdo->prepare("
+            SELECT 
+                bb.BorrowID,
+                u.UserID,
+                u.Fname,
+                b.Title,
+                bb.DueDate,
+                DATEDIFF(bb.DueDate, CURDATE()) AS DaysUntilDue
+            FROM 
+                borrowed_books bb
+            JOIN 
+                users u ON bb.UserID = u.UserID
+            JOIN 
+                books b ON bb.BookID = b.BookID
+            WHERE 
+                bb.DueDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+                AND bb.StatusID = 4
+        ");
+        $stmtDueSoon->execute();
+        $attentionList['dueSoonBooks'] = $stmtDueSoon->fetchAll(PDO::FETCH_ASSOC);
+
+        // 3. Fetch Reservations About to Expire (e.g., in next 2 days)
+        $stmtExpiringReservations = $this->pdo->prepare("
+            SELECT 
+                r.ReservationID,
+                u.UserID,
+                u.Fname,
+                b.Title,
+                r.ExpirationDate,
+                DATEDIFF(r.ExpirationDate, CURDATE()) AS DaysUntilExpiry
+            FROM 
+                reservations r
+            JOIN 
+                users u ON r.UserID = u.UserID
+            JOIN 
+                books b ON r.BookID = b.BookID
+            WHERE 
+                r.ExpirationDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 2 DAY)
+                AND r.StatusID = 5
+        ");
+        $stmtExpiringReservations->execute();
+        $attentionList['expiringReservations'] = $stmtExpiringReservations->fetchAll(PDO::FETCH_ASSOC);
+
+    
+        echo json_encode($attentionList);
+
+    } catch (\PDOException $e) {
+        
+        http_response_code(500); 
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to fetch admin attention list.',
+            'error' => $e->getMessage()
+        ]);
+    }
+}
+
 
     /**
      * **Fetch Popular Books**
@@ -60,7 +150,7 @@ class Reports {
                 SELECT 
                     bb.BorrowID,
                     b.Title,
-                    u.Fname AS UserName,
+                    u.Fname AS Fname,
                     bb.BorrowDate,
                     bb.DueDate,
                     DATEDIFF(CURDATE(), bb.DueDate) AS DaysOverdue
@@ -134,7 +224,7 @@ class Reports {
                     bb.BorrowID,
                     b.Title,
                     a.AuthorName,
-                    u.Fname AS UserName,
+                    u.Fname AS Fname,
                     bb.BorrowDate,
                     bb.DueDate
                 FROM 
@@ -170,7 +260,7 @@ class Reports {
             $stmt = $this->pdo->prepare("
                 SELECT 
                     u.UserID,
-                    u.Fname AS UserName,
+                    u.Fname AS Fname,
                     COUNT(bb.BorrowID) AS LateReturns
                 FROM 
                     borrowed_books bb
@@ -209,6 +299,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 $reports = new Reports($pdo);
 
 switch ($operation) {
+    case 'getAdminAttentionList':
+        $reports->getAdminAttentionList();
+        // echo json_encode(['success' => true, 'attention_list' => $attentionList]);
+        break;
     case 'fetchPopularBooks':
         $reports->fetchPopularBooks();
         break;
