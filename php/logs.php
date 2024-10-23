@@ -4,7 +4,7 @@ class Logs{
     public function __construct($pdo){
         $this->pdo = $pdo;
     }
-    public function fetchLogs($user_id){
+    public function fetchLogs(){
         try {
             $stmt = $this->pdo->prepare(
                 "SELECT
@@ -14,11 +14,12 @@ class Logs{
                     `Date`
                 FROM
                     `logs`
-                WHERE
-                    UserID = ?
-                ORDER BY Date DESC"
+                INNER JOIN
+                    users ON logs.UserID = users.UserID
+                ORDER BY
+                    Date DESC"
             );
-            $stmt->execute([$user_id]);
+            $stmt->execute(); 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         }catch (\PDOException $e){
             return [];

@@ -1064,6 +1064,11 @@ public function markNotificationAsRead($notificationId) {
         $this->notification->sendDueDateReminders();
         echo json_encode(['success' => true, 'message' => 'Due date reminders sent successfully.']);
     }
+
+    public function fetchLogs(){
+        $logs = $this->logs->fetchLogs();
+        echo json_encode(['success' => true, 'logs' => $logs]);
+    }
 }
 
 // **Handle Incoming Requests**
@@ -1155,11 +1160,7 @@ switch ($operation) {
         // ** Notif Functions **
    case 'fetchNotifications':
     if (isset($json['user_id'])) {
-        // Open the file in append mode
-        $file = fopen('userId.log', 'a');
-       
-
-        // Call fetchNotifications method
+        
         $book->fetchNotifications($json['user_id']);
     } else {
         http_response_code(400);
@@ -1197,6 +1198,11 @@ switch ($operation) {
         break;
     case 'sendDueDateReminders':
         $book->sendDueDateReminders();
+        break;
+
+    //**Logs Function */
+    case 'fetchLogs':
+        $book->fetchLogs();
         break;
     default:
         http_response_code(400); // Bad Request
