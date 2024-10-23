@@ -38,7 +38,8 @@ public function fetchBookProviders() {
         addresses.City,
         addresses.State,
         addresses.Country,
-        addresses.PostalCode
+        addresses.PostalCode,
+        IsActive
     FROM
         book_providers
     INNER JOIN contacts ON book_providers.ContactID = contacts.ContactID
