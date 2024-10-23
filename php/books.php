@@ -100,7 +100,7 @@ class Book {
             VALUES (?, ?, 1)
         ");
         $stmt->execute([$bookId, $i]);
-        $this->notification->addNotificationForLibrarians("A new copy of Book ID: $bookId has been added.", 17);
+        // $this->notification->addNotificationForLibrarians("A new copy of Book ID: $bookId has been added.", 17);
     }
 
     // Only output the success message once, after all copies have been added.
