@@ -26,11 +26,11 @@ class Book {
      * @param array $json
      */
    public function addBook($json) {
-    if (!$this->validateBookInput($json)) {
-        http_response_code(400); // Bad Request
-        echo json_encode(['success' => false, 'message' => 'Invalid input.']);
-        exit;
-    }
+    // if (!$this->validateBookInput($json)) {
+    //     http_response_code(400); // Bad Request
+    //     echo json_encode(['success' => false, 'message' => 'Invalid input.']);
+    //     exit;
+    // }
 
     try {
         $this->pdo->beginTransaction();
@@ -62,19 +62,10 @@ class Book {
         if (isset($json['copies']) && is_numeric($json['copies'])) {
             $this->addBookCopies($bookId, intval($json['copies']));
         }
-        // // Ensure user_id exists and is valid
-        // if (!isset($json['user_id']) || !is_numeric($json['user_id'])) {
-        //     http_response_code(400); // Bad Request
-        //     echo json_encode(['success' => false, 'message' => 'Invalid user ID.']);
-        //     exit;
-        // }
-
-        $userId = intval($json['user_id']); 
-
-        
-    
 
         $this->pdo->commit();
+        $userId = intval($json['user_id']); 
+
         //**Add ta og logs */
         $userName = $this->getUsersName($json['user_id']);
         $context = "$userName Added a new book '{$json['title']}' to the library.";
@@ -86,7 +77,7 @@ class Book {
         $this->notification->addNotificationForLibrarians($message, $notificationTypeId);
         $this->notification->addNotification(null, "A new book '{$json['title']}' has been added to the library.", 9);
 
-        echo json_encode(['success' => true, 'message' => 'Book added successfully.', 'book_id' => $bookId]);
+        // echo json_encode(['success' => true, 'message' => 'Book added successfully.', 'book_id' => $bookId]);
     } catch (\PDOException $e) {
         $this->pdo->rollBack();
         http_response_code(500); // Internal Server Error
@@ -113,7 +104,7 @@ class Book {
     }
 
     // Only output the success message once, after all copies have been added.
-    echo json_encode(['success' => true, 'message' => 'Book added successfully.', 'book_id' => $bookId]);
+    echo json_encode(['success' => true, 'message' => 'Book added successfully.']);
 }
 
     /**
@@ -129,7 +120,8 @@ class Book {
                isset($json['genres']) && is_array($json['genres']) &&
                !empty($json['isbn']) && 
                !empty($json['publication_date']) &&
-               !empty($json['provider_id']);
+               !empty($json['provider_id'])&&
+               !empty($json['user_id']);
     }
 /**
  * **Update Book Copies**
