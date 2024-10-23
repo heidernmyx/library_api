@@ -16,7 +16,7 @@ class Genre {
 
   // Fetch all genres
   function fetchGenres() {
-    $stmt = $this->pdo->prepare("SELECT * FROM genres");
+    $stmt = $this->pdo->prepare("SELECT * FROM genres WHERE IsArchived = 0");
     $stmt->execute();
     $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
