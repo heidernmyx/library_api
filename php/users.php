@@ -375,7 +375,7 @@ public function getUserDetails($json) {
 
     try {
         $stmt = $this->pdo->prepare("
-            SELECT users.UserID, users.Name, contacts.Email, contacts.Phone, user_roles.RoleName
+            SELECT users.UserID, users.Fname, contacts.Email, contacts.Phone, user_roles.RoleName
             FROM users
             JOIN contacts ON users.ContactID = contacts.ContactID
             JOIN user_roles ON users.RoleID = user_roles.RoleID

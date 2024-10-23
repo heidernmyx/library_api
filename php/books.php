@@ -637,9 +637,11 @@ private function getOrCreateAuthor($authorName) {
      *
      * @param int|null $userId
      */
-    public function fetchBorrowedBooks($userId = null) {
-        try {
-            // Base query
+public function fetchBorrowedBooks($userId = null, $role = null) {
+    try {
+        // Case when both userId and role are provided (return both borrowed books and notifications)
+        if ($userId !== null && $role !== null) {
+            // Query for borrowed books
             $sql = "
                 SELECT
                     bb.BorrowID,
@@ -664,34 +666,142 @@ private function getOrCreateAuthor($authorName) {
                 LEFT JOIN authors a ON b.AuthorID = a.AuthorID
                 LEFT JOIN book_providers bp ON b.ProviderID = bp.ProviderID
                 LEFT JOIN notification_type nt ON bb.StatusID = nt.NotificationTypeID
+                WHERE bb.UserID = ?
+                ORDER BY bb.BorrowDate DESC
             ";
 
-            // Modify query if userId is provided
-            if ($userId !== null) {
-                $sql .= " WHERE bb.UserID = ? ORDER BY bb.BorrowDate DESC";
-                $stmt = $this->pdo->prepare($sql);
-                $stmt->execute([$userId]);
-            } else {
-                $sql .= " ORDER BY bb.BorrowDate DESC";
-                $stmt = $this->pdo->prepare($sql);
-                $stmt->execute();
+            // Query for notifications
+            $sql2 = "
+                SELECT
+                    NotificationID,
+                    users.Fname,
+                    Message,
+                    DateSent,
+                    notification_type.NotificationTypeName,
+                    notifications.Status
+                FROM
+                    notifications
+                JOIN users ON notifications.UserID = users.UserID
+                JOIN notification_type on notifications.NotificationTypeID = notification_type.NotificationTypeID
+                WHERE
+                    users.UserID = ?
+            ";
+
+            // Execute the first query for borrowed books
+            $stmt1 = $this->pdo->prepare($sql);
+            $stmt1->execute([$userId]);
+            $borrowedBooks = $stmt1->fetchAll(PDO::FETCH_ASSOC);
+
+            // Execute the second query for notifications
+            $stmt2 = $this->pdo->prepare($sql2);
+            $stmt2->execute([$userId]);
+            $notifications = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+            // Check if notifications query returned any results
+            if ($notifications === false) {
+                // Handle query failure
+                $notifications = [];
             }
 
-            // Fetch data
+            // Return both results in a single response
+            echo json_encode([
+                'success' => true,
+                'borrowed_books' => $borrowedBooks,
+                'notifications' => $notifications  // Empty if none found
+            ]);
+
+        // Case when only userId is provided (return only borrowed books)
+        } else if ($userId !== null) {
+            // Query for borrowed books only
+            $sql = "
+                SELECT
+                    bb.BorrowID,
+                    u.Fname,
+                    b.BookID,
+                    b.Title,
+                    a.AuthorName,
+                    bb.BorrowDate,
+                    bb.DueDate,
+                    bb.ReturnDate,
+                    rs.StatusName AS BorrowStatus,
+                    nt.NotificationTypeName AS StatusName,
+                    b.ISBN,
+                    b.PublicationDate,
+                    bp.ProviderName,
+                    bb.PenaltyFees
+                FROM
+                    borrowed_books bb
+                JOIN users u ON bb.UserID = u.UserID
+                JOIN books b ON bb.BookID = b.BookID
+                JOIN reservation_status rs ON bb.StatusID = rs.StatusID
+                LEFT JOIN authors a ON b.AuthorID = a.AuthorID
+                LEFT JOIN book_providers bp ON b.ProviderID = bp.ProviderID
+                LEFT JOIN notification_type nt ON bb.StatusID = nt.NotificationTypeID
+                WHERE bb.UserID = ? 
+                ORDER BY bb.BorrowDate DESC
+            ";
+
+            // Execute the query
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([$userId]);
+            $borrowedBooks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Return only borrowed books
+            echo json_encode([
+                'success' => true,
+                'borrowed_books' => $borrowedBooks
+            ]);
+
+        // Case when neither userId nor role is provided (fetch all records)
+        } else {
+            $sql = "
+                SELECT
+                    bb.BorrowID,
+                    u.Fname,
+                    b.BookID,
+                    b.Title,
+                    a.AuthorName,
+                    bb.BorrowDate,
+                    bb.DueDate,
+                    bb.ReturnDate,
+                    rs.StatusName AS BorrowStatus,
+                    nt.NotificationTypeName AS StatusName,
+                    b.ISBN,
+                    b.PublicationDate,
+                    bp.ProviderName,
+                    bb.PenaltyFees
+                FROM
+                    borrowed_books bb
+                JOIN users u ON bb.UserID = u.UserID
+                JOIN books b ON bb.BookID = b.BookID
+                JOIN reservation_status rs ON bb.StatusID = rs.StatusID
+                LEFT JOIN authors a ON b.AuthorID = a.AuthorID
+                LEFT JOIN book_providers bp ON b.ProviderID = bp.ProviderID
+                LEFT JOIN notification_type nt ON bb.StatusID = nt.NotificationTypeID
+                ORDER BY bb.BorrowDate DESC
+            ";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute();
+
             $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Return the result
+            // Return only borrowed books
             echo json_encode(['success' => true, 'borrowed_books' => $data]);
-        } catch (\PDOException $e) {
-            // Handle errors
-            http_response_code(500); // Internal Server Error
-            echo json_encode([
-                'success' => false,
-                'message' => 'Failed to fetch borrowed books.',
-                'error' => $e->getMessage()
-            ]);
         }
+    } catch (\PDOException $e) {
+        // Handle errors
+        http_response_code(500); // Internal Server Error
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to fetch borrowed books.',
+            'error' => $e->getMessage()
+        ]);
     }
+}
+
+
+
 
     /**
      * **Fetch Reserved Books**
@@ -1142,12 +1252,18 @@ switch ($operation) {
         }
         break;
     case 'fetchBorrowedBooks':
-        if (isset($json['user_id'])) {
-            $book->fetchBorrowedBooks($json['user_id']);
-        } else {
-            $book->fetchBorrowedBooks(); // Call with no userId
-        }
-        break;
+    if (isset($json['user_id']) && isset($json['role'])) {
+        // Pass both user_id and role to the function
+        $book->fetchBorrowedBooks($json['user_id'], $json['role']);
+    } else if (isset($json['user_id'])) {
+        // Pass only user_id if role is not provided
+        $book->fetchBorrowedBooks($json['user_id']);
+    } else {
+        // Call without userId
+        $book->fetchBorrowedBooks();
+    }
+    break;
+
     case 'updateReservationStatus':
         if (isset($json['reservation_id']) && isset($json['status_id']) && isset($json['user_id'])) {
             $book->updateReservationStatus($json['reservation_id'], $json['status_id'], $json['user_id']);
