@@ -375,10 +375,13 @@ public function getUserDetails($json) {
 
     try {
         $stmt = $this->pdo->prepare("
-            SELECT users.UserID, users.Fname, contacts.Email, contacts.Phone, user_roles.RoleName
+            SELECT users.UserID, users.Fname, contacts.Email, contacts.Phone, user_roles.RoleName,
+                addresses.*
             FROM users
             JOIN contacts ON users.ContactID = contacts.ContactID
             JOIN user_roles ON users.RoleID = user_roles.RoleID
+            JOIN addresses ON users.AddressID = addresses.AddressID
+
             WHERE users.UserID = :user_id
         ");
         $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
