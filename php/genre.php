@@ -111,6 +111,21 @@ class Genre {
     echo json_encode(['success' => $result == 1, 'message' => $result == 1 ? 'Genre archived successfully' : 'Failed to archive genre']);
   }
 
+  function restoreGenre($json) {
+
+    // Soft delete by marking the genre as archived (assuming there's a column named 'IsArchived')
+    $sql = "UPDATE genres SET IsArchived = 0 WHERE GenreID = :genreID";
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->bindParam(':genreID', $json['genreID'], PDO::PARAM_INT);
+    $stmt->execute();
+    $result = $stmt->rowCount() > 0 ? 1 : 0;
+
+    unset($this->pdo);
+    unset($stmt);
+
+    echo json_encode(['success' => $result == 1, 'message' => $result == 1 ? 'Genre restored successfully' : 'Failed to restore genre']);
+  }
+
   // Fetch archived genres
   function fetchArchivedGenres() {
     $stmt = $this->pdo->prepare("SELECT * FROM genres WHERE IsArchived = 1");
@@ -146,6 +161,9 @@ switch ($operation) {
     break;
   case 'archiveGenre':
     $genre->archiveGenre($json);
+    break;
+  case 'restoreGenre':
+    $genre->restoreGenre($json);
     break;
   case 'fetchArchivedGenres':
     $genre->fetchArchivedGenres();
