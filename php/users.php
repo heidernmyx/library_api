@@ -380,7 +380,7 @@ public function getUserDetails($json) {
             FROM users
             JOIN contacts ON users.ContactID = contacts.ContactID
             JOIN user_roles ON users.RoleID = user_roles.RoleID
-            JOIN addresses ON users.AddressID = addresses.AddressID
+            LEFT JOIN addresses ON users.AddressID = addresses.AddressID
 
             WHERE users.UserID = :user_id
         ");
