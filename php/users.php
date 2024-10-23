@@ -57,7 +57,8 @@ class User {
               PasswordHash,
               RoleID,
               GenderID,
-              ContactID
+              ContactID,
+              Status
           )
           VALUES(
               :Fname,
