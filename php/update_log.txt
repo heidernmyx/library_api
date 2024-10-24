@@ -1,0 +1,139 @@
+Array
+(
+    [PublisherName] => NBSs
+    [Phone] => 01233210
+    [Email] => BastaPublisher@gmail.com
+    [Street] => Sa amoa Street
+    [City] => Cagayan de Oro
+    [State] => Misamis Oriental
+    [Country] => Philippines
+    [PostalCode] => 9000
+    [user_id] => 79
+    [ContactID] => 14
+)
+Email check result: Updated contact ID: 14Updated addressArray
+(
+    [PublisherName] => Book of sererinity publishers
+    [Phone] => 7184685928
+    [Email] => bookSerenity@.com
+    [Street] => st.John
+    [City] => New York
+    [State] => California
+    [Country] => USA
+    [PostalCode] => w-433n2
+    [user_id] => 79
+    [ContactID] => 26
+)
+Email check result: Updated contact ID: 26Updated addressArray
+(
+    [PublisherName] => NBSs
+    [Phone] => 01233210
+    [Email] => BastaPublisher@gmail.com
+    [Street] => Sa amoa Street
+    [City] => Cagayan de Oro
+    [State] => Misamis Oriental
+    [Country] => Philippines
+    [PostalCode] => 9000
+    [user_id] => 79
+    [ContactID] => 14
+)
+Email check result: Updated contact ID: 14Updated addressEmail check result: Updated contact ID: Updated addressArray
+(
+    [PublisherName] => NBSs
+    [Phone] => 01233210
+    [Email] => BastaPublisher@gmail.com
+    [Street] => Sa amoa Street
+    [City] => Cagayan de Oro
+    [State] => Misamis Oriental
+    [Country] => Philippines
+    [PostalCode] => 9000
+    [user_id] => 79
+    [ContactID] => 14
+)
+Email check result: Updated contact ID: 14Updated addressArray
+(
+    [PublisherName] => NBSs
+    [Phone] => 01233210
+    [Email] => BastaPublisher@gmail.com
+    [Street] => Sa amoa Street
+    [City] => Cagayan de Oro
+    [State] => Misamis Oriental
+    [Country] => Philippines
+    [PostalCode] => 9000
+    [user_id] => 79
+    [ContactID] => 14
+)
+Email check result: Updated contact ID: 14Updated addressArray
+(
+    [PublisherName] => NBSs
+    [Phone] => 01233210
+    [Email] => BastaPublisher@gmail.com
+    [Street] => Sa amoa Street
+    [City] => Cagayan de Oro
+    [State] => Misamis Oriental
+    [Country] => Philippines
+    [PostalCode] => 9000
+    [user_id] => 79
+    [ContactID] => 14
+    [AddressID] => 7
+)
+Email check result: Updated contact ID: 14Updated addressArray
+(
+    [PublisherName] => NBSs
+    [Phone] => 01233210
+    [Email] => BastaPublisher@gmail.com
+    [Street] => Sa amoa Street
+    [City] => Cagayan de Oro
+    [State] => Misamis Oriental
+    [Country] => Philippines
+    [PostalCode] => 9000
+    [user_id] => 79
+    [ContactID] => 14
+    [AddressID] => 7
+)
+Email check result: Updated contact ID: 14Updated addressArray
+(
+    [PublisherID] => 1
+    [PublisherName] => NBSs
+    [Phone] => 01233210
+    [Email] => BastaPublisher@gmail.com
+    [Street] => Sa amoa Street
+    [City] => Cagayan de Oro
+    [State] => Misamis Oriental
+    [Country] => Philippines
+    [PostalCode] => 9000
+    [user_id] => 79
+    [ContactID] => 14
+    [AddressID] => 7
+)
+Email check result: Updated contact ID: 14Updated addressArray
+(
+    [PublisherID] => 1
+    [PublisherName] => NBSs
+    [Phone] => 01233210
+    [Email] => Nbs@gmail.com
+    [Street] => Sa amoa Street
+    [City] => Cagayan de Oro
+    [State] => Misamis Oriental
+    [Country] => Philippines
+    [PostalCode] => 9000
+    [user_id] => 79
+    [ContactID] => 14
+    [AddressID] => 7
+)
+Email check result: Updated contact ID: 14Updated addressArray
+(
+    [PublisherID] => 1
+    [PublisherName] => NBS
+    [Phone] => 01233210
+    [Email] => Nbs@gmail.com
+    [Street] => Sa amoa Street
+    [City] => Cagayan de Oro
+    [State] => Misamis Oriental
+    [Country] => Philippines
+    [PostalCode] => 9000
+    [user_id] => 79
+    [ContactID] => 14
+    [AddressID] => 7
+)
+Email check result: Updated contact ID: 14Updated address

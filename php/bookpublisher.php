@@ -31,8 +31,10 @@ class BookPublisher {
        SELECT
             `PublisherID`,
             `PublisherName`,
+            contacts.ContactID,
             contacts.Phone,
             contacts.Email,
+            addresses.AddressID,
             addresses.Street,
             addresses.City,
             addresses.State,
@@ -123,68 +125,84 @@ class BookPublisher {
             echo json_encode(['success' => false, 'message' => 'Adding of book publisher failed: ' . $e->getMessage()]);
         }
     }
+public function updatePublisher($json) {
+    try {
+        $this->pdo->beginTransaction();
+        
+        // Log the incoming data
+        file_put_contents('update_log.txt', print_r($json, true), FILE_APPEND);
 
-    public function updatePublisher($json) {
-        try {
-            $this->pdo->beginTransaction();
+        // Check if the email already exists for another contact (different ContactID)
+        $stmt = $this->pdo->prepare("
+            SELECT ContactID FROM contacts 
+            WHERE Email = :email AND ContactID != :contactId
+        ");
+        $stmt->bindParam(':email', $json['Email'], PDO::PARAM_STR);
+        $stmt->bindParam(':contactId', $json['ContactID'], PDO::PARAM_INT);
+        $stmt->execute();
 
-            // Update contact details
-            $stmt = $this->pdo->prepare("
-                UPDATE contacts 
-                SET Phone = :phone, Email = :email 
-                WHERE ContactID = :contactId
-            ");
-            $stmt->bindParam(':phone', $json['Phone'], PDO::PARAM_STR);
-            $stmt->bindParam(':email', $json['Email'], PDO::PARAM_STR);
-            $stmt->bindParam(':contactId', $json['ContactID'], PDO::PARAM_INT);
-            $stmt->execute();
+        // Log the query result
+        file_put_contents('update_log.txt', "Email check result: " . print_r($stmt->fetch(), true), FILE_APPEND);
 
-            // Update address details
-            unset($stmt);
-            $stmt = $this->pdo->prepare("
-                UPDATE addresses 
-                SET Street = :street, City = :city, State = :state, Country = :country, PostalCode = :postalCode 
-                WHERE AddressID = :addressId
-            ");
-            $stmt->bindParam(':street', $json['Street'], PDO::PARAM_STR);
-            $stmt->bindParam(':city', $json['City'], PDO::PARAM_STR);
-            $stmt->bindParam(':state', $json['State'], PDO::PARAM_STR);
-            $stmt->bindParam(':country', $json['Country'], PDO::PARAM_STR);
-            $stmt->bindParam(':postalCode', $json['PostalCode'], PDO::PARAM_STR);
-            $stmt->bindParam(':addressId', $json['AddressID'], PDO::PARAM_INT);
-            $stmt->execute();
-
-            // Update publisher name
-            unset($stmt);
-            $stmt = $this->pdo->prepare("
-                UPDATE publisher 
-                SET PublisherName = :publisherName 
-                WHERE PublisherID = :publisherId
-            ");
-            $stmt->bindParam(':publisherName', $json['PublisherName'], PDO::PARAM_STR);
-            $stmt->bindParam(':publisherId', $json['PublisherID'], PDO::PARAM_INT);
-            $stmt->execute();
-
-            // Commit transaction
-            $this->pdo->commit();
-
-            // Get user details for logs and notification
-            $userId = intval($json['user_id']);
-            $userName = $this->getUsersName($userId);
-
-            // Add notification for librarians
-            $this->notification->addNotificationForLibrarians("'{$json['PublisherName']}' has been updated", 17);
-
-            // Log the action
-            $this->logs->addLogs($userId, "$userName updated a Book Publisher: '{$json['PublisherName']}'");
-
-            echo json_encode(['success' => true, 'message' => 'Publisher updated successfully.']);
-
-        } catch (PDOException $e) {
-            $this->pdo->rollBack();
-            echo json_encode(['success' => false, 'message' => 'Failed to update publisher: ' . $e->getMessage()]);
+        // If the email exists for another ContactID, throw an exception
+        if ($stmt->fetch()) {
+            throw new Exception('Email already exists for another contact.');
         }
+
+        // Proceed with updating contact details
+        $stmt = $this->pdo->prepare("
+            UPDATE contacts 
+            SET Phone = :phone, Email = :email 
+            WHERE ContactID = :contactId
+        ");
+        $stmt->bindParam(':phone', $json['Phone'], PDO::PARAM_STR);
+        $stmt->bindParam(':email', $json['Email'], PDO::PARAM_STR);
+        $stmt->bindParam(':contactId', $json['ContactID'], PDO::PARAM_INT);
+        $stmt->execute();
+
+        // Log the contact update
+        file_put_contents('update_log.txt', "Updated contact ID: " . $json['ContactID'], FILE_APPEND);
+
+        // Update address details
+        unset($stmt);
+        $stmt = $this->pdo->prepare("
+            UPDATE addresses 
+            SET Street = :street, City = :city, State = :state, Country = :country, PostalCode = :postalCode 
+            WHERE AddressID = :addressId
+        ");
+        $stmt->bindParam(':street', $json['Street'], PDO::PARAM_STR);
+        $stmt->bindParam(':city', $json['City'], PDO::PARAM_STR);
+        $stmt->bindParam(':state', $json['State'], PDO::PARAM_STR);
+        $stmt->bindParam(':country', $json['Country'], PDO::PARAM_STR);
+        $stmt->bindParam(':postalCode', $json['PostalCode'], PDO::PARAM_STR);
+        $stmt->bindParam(':addressId', $json['AddressID'], PDO::PARAM_INT);
+        $stmt->execute();
+
+        // Log address update
+        file_put_contents('update_log.txt', "Updated address", FILE_APPEND);
+
+        // Update publisher name
+        unset($stmt);
+        $stmt = $this->pdo->prepare("
+            UPDATE publisher 
+            SET PublisherName = :publisherName 
+            WHERE PublisherID = :publisherId
+        ");
+        $stmt->bindParam(':publisherName', $json['PublisherName'], PDO::PARAM_STR);
+        $stmt->bindParam(':publisherId', $json['PublisherID'], PDO::PARAM_INT);
+        $stmt->execute();
+
+        // Commit transaction
+        $this->pdo->commit();
+
+        echo json_encode(['success' => true, 'message' => 'Publisher updated successfully.']);
+
+    } catch (Exception $e) {
+        $this->pdo->rollBack();
+        echo json_encode(['success' => false, 'message' => 'Failed to update publisher: ' . $e->getMessage()]);
     }
+}
+
 
     public function archivePublishers($json) {
       
